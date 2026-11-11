@@ -16,7 +16,3 @@
 <!-- Command output, logs, or a description of what a screenshot shows. -->
 
 </details>
-
-## AI declaration
-
-<!-- One line: which model wrote this, and who reviewed it. -->
