@@ -1,0 +1,64 @@
+{
+  "labels": [
+    {
+      "name": "kind/bug",
+      "color": "d73a4a",
+      "description": "Something behaves wrong."
+    },
+    {
+      "name": "kind/feature",
+      "color": "a2eeef",
+      "description": "New user-visible behavior."
+    },
+    {
+      "name": "kind/task",
+      "color": "cfd3d7",
+      "description": "Work that is neither a bug nor a feature."
+    },
+    {
+      "name": "area/launcher",
+      "color": "5319e7",
+      "description": "The CLI entry: arguments and profile hand-off."
+    },
+    {
+      "name": "area/release",
+      "color": "1d76db",
+      "description": "Packaging, versioning and publishing."
+    },
+    {
+      "name": "area/ci",
+      "color": "006b75",
+      "description": "Continuous integration and local hooks."
+    },
+    {
+      "name": "area/docs",
+      "color": "0e8a16",
+      "description": "README, changelog and wiki."
+    },
+    {
+      "name": "area/repo",
+      "color": "bfd4f2",
+      "description": "Repository policy, templates and access."
+    },
+    {
+      "name": "p0",
+      "color": "b60205",
+      "description": "Drop everything."
+    },
+    {
+      "name": "p1",
+      "color": "d93f0b",
+      "description": "Next in the current milestone."
+    },
+    {
+      "name": "p2",
+      "color": "fbca04",
+      "description": "Normal queue."
+    },
+    {
+      "name": "p3",
+      "color": "c2e0c6",
+      "description": "Worth doing when nothing else waits."
+    }
+  ]
+}
