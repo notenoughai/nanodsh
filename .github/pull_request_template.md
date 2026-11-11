@@ -1,6 +1,9 @@
 ## Motivation
 
-<!-- What problem does this change solve? Closes #N to close the issue on merge, Refs #N for context that closes nothing. -->
+<!-- What problem does this change solve?
+     Closes #N closes the issue when this merges; use owner/repo#N for an issue in another repository here.
+     Refs #N or an issue URL only references it: a URL never closes anything, and an issue on another forge
+     cannot be closed from this pull request at all. -->
 
 ## Changes
 
