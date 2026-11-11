@@ -1,6 +1,6 @@
 ## Motivation
 
-<!-- What problem does this change solve? Reference the issue: Fixes #N for a change that closes it, Refs #N for context. -->
+<!-- What problem does this change solve? Closes #N to close the issue on merge, Refs #N for context that closes nothing. -->
 
 ## Changes
 
