@@ -1,0 +1,22 @@
+{
+  "name": "@notenoughai/nanodsh",
+  "version": "0.0.1",
+  "description": "Boot a dsh profile, and nothing else.",
+  "type": "module",
+  "bin": {
+    "nanodsh": "bin/nanodsh.js"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-cmdline": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.1",
+    "commander": "^15.1.0"
+  }
+}
