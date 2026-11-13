@@ -1,0 +1,36 @@
+name: ci
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: install
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: check
+        run: pnpm check
+      - name: test
+        run: pnpm test
+      - name: pack smoke
+        run: |
+          mkdir -p /tmp/pack
+          pnpm pack --pack-destination /tmp/pack
+          tarball=$(ls /tmp/pack/*.tgz)
+          if tar -tzf "$tarball" | grep -qE '^package/(test|scripts)/'; then
+            echo "the tarball must not carry tests or scripts" >&2
+            exit 1
+          fi
+          work=$(mktemp -d)
+          cd "$work"
+          npm init -y >/dev/null
+          npm install "$tarball" --no-audit --no-fund >/dev/null
+          ./node_modules/.bin/nanodsh --version

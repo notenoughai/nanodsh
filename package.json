@@ -25,6 +25,7 @@
   },
   "scripts": {
     "bench": "node scripts/bench.mjs",
+    "check": "for file in bin/*.js lib/*.js scripts/*.mjs test/*.mjs; do node --check \"$file\" || exit 1; done",
     "test": "node --test"
   }
 }
