@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
 import { parseArgs } from '../lib/args.js';
 import { dumpConfig } from '../lib/dump-config.js';
 import { runProfile } from '../lib/profile.js';
+import { VERSION } from '../lib/version.js';
 
-const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-const invocation = parseArgs(process.argv.slice(2), version);
+const invocation = parseArgs(process.argv.slice(2), VERSION);
 
 try {
   if (invocation.dumpConfig) dumpConfig(invocation);
