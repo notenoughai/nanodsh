@@ -6,6 +6,8 @@ import { runDistroCli } from '../lib/distro-cli.js';
 import { runInstanceCli } from '../lib/instance-cli.js';
 import { runPluginCli } from '../lib/plugin-cli.js';
 import { runProfileCli } from '../lib/profile-cli.js';
+import { renderCompletion, SHELLS } from '../lib/completions.js';
+import { readRegistry } from '../lib/registry.js';
 import { overriddenNotice, selectHome } from '../lib/selection.js';
 import { dumpConfig, dumpConfigSchema, dumpDefaultConfig } from '../lib/dump-config.js';
 import { runProfile } from '../lib/profile.js';
@@ -25,7 +27,19 @@ function availableProfiles(home) {
 }
 
 try {
-  if (argv[0] === 'instance') {
+  if (argv[0] === 'completion') {
+    const shell = argv[1];
+    if (shell === undefined) {
+      process.stderr.write(`nanodsh: completion needs a shell; expected one of ${SHELLS.join(', ')}\n`);
+      process.exit(2);
+    }
+    try {
+      process.stdout.write(renderCompletion(shell));
+    } catch (error) {
+      process.stderr.write(`${error.message}\n`);
+      process.exit(2);
+    }
+  } else if (argv[0] === 'instance') {
     await runInstanceCli(argv.slice(1));
   } else if (argv[0] === 'plugin') {
     const selection = selectHome(argv.slice(1), process.env, { stopAtPositional: false });
@@ -45,6 +59,16 @@ try {
   } else {
     const selection = selectHome(argv);
     process.env.DSH_HOME = selection.home;
+    if (argv.includes('--list-profiles')) {
+      const names = availableProfiles(selection.home);
+      if (names.length > 0) process.stdout.write(`${names.join('\n')}\n`);
+      process.exit(0);
+    }
+    if (argv.includes('--list-instances')) {
+      const names = Object.keys(readRegistry().instances).sort();
+      if (names.length > 0) process.stdout.write(`${names.join('\n')}\n`);
+      process.exit(0);
+    }
     process.stderr.write(overriddenNotice(selection));
     const invocation = parseArgs(argv, VERSION);
     if (invocation.profile === undefined) {
