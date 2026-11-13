@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { parseArgs } from '../lib/args.js';
 import { runDistroCli } from '../lib/distro-cli.js';
 import { runInstanceCli } from '../lib/instance-cli.js';
+import { runProfileCli } from '../lib/profile-cli.js';
 import { overriddenNotice, selectHome } from '../lib/selection.js';
 import { dumpConfig, dumpConfigSchema, dumpDefaultConfig } from '../lib/dump-config.js';
 import { runProfile } from '../lib/profile.js';
@@ -25,6 +26,11 @@ function availableProfiles(home) {
 try {
   if (argv[0] === 'instance') {
     await runInstanceCli(argv.slice(1));
+  } else if (argv[0] === 'profile') {
+    const selection = selectHome(argv.slice(1), process.env, { stopAtPositional: false });
+    process.env.DSH_HOME = selection.home;
+    process.stderr.write(overriddenNotice(selection));
+    runProfileCli(argv.slice(1));
   } else if (argv[0] === 'distro') {
     const selection = selectHome(argv.slice(1), process.env, { stopAtPositional: false });
     process.env.DSH_HOME = selection.home;
