@@ -24,6 +24,7 @@
     "commander": "^15.1.0"
   },
   "scripts": {
+    "bench": "node scripts/bench.mjs",
     "test": "node --test"
   }
 }
