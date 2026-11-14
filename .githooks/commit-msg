@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node scripts/desens.mjs --message "$1"
