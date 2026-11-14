@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { loadRules, scanText } from '../scripts/desens.mjs';
+import { loadRules, parsePrePush, scanText } from '../scripts/desens.mjs';
 
 const rules = loadRules();
 const fabricatedToken = ['ghp', 'x'.repeat(36)].join('_');
@@ -49,4 +49,21 @@ test('a ruleset override variable makes the command refuse', () => {
       stdio: 'pipe',
     });
   }, /GITLEAKS_CONFIG/);
+});
+
+test('pre-push refs are read from the four fields git sends', () => {
+  const zero = '0'.repeat(40);
+  const first = 'a'.repeat(40);
+  const second = 'b'.repeat(40);
+  const base = 'c'.repeat(40);
+  const text = [
+    `refs/heads/main ${first} refs/heads/main ${zero}`,
+    `refs/heads/topic ${second} refs/heads/topic ${base}`,
+    `refs/heads/gone ${zero} refs/heads/gone ${base}`,
+    '',
+  ].join('\n');
+  assert.deepEqual(parsePrePush(text), [
+    [first, '--not', '--remotes'],
+    [`${base}..${second}`],
+  ]);
 });
