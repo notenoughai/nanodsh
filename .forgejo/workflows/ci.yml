@@ -16,6 +16,21 @@ jobs:
         run: |
           corepack enable
           pnpm install --frozen-lockfile
+      - name: desensitization scan
+        run: |
+          base="${GITHUB_BASE_REF:-}"
+          if [ -n "$base" ]; then
+            git fetch --no-tags origin "refs/heads/$base:refs/remotes/origin/$base"
+            range="origin/$base..$GITHUB_SHA"
+          else
+            before=$(node -e 'const e=JSON.parse(require("fs").readFileSync(process.env.GITHUB_EVENT_PATH,"utf8"));process.stdout.write(e.before??"")')
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ]; then
+              range="$before..$GITHUB_SHA"
+            else
+              range="$GITHUB_SHA --not --remotes"
+            fi
+          fi
+          node scripts/desens.mjs --range "$range" --required-secrets
       - name: check
         run: pnpm check
       - name: test
