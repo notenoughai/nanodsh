@@ -1,6 +1,9 @@
 {
   "name": "@notenoughai/nanodsh",
   "version": "0.0.1",
+  "publishConfig": {
+    "access": "public"
+  },
   "packageManager": "pnpm@12.18.0",
   "description": "Boot a dsh profile, and nothing else.",
   "type": "module",

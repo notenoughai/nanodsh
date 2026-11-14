@@ -46,6 +46,8 @@ jobs:
             echo "the tarball must not carry tests or scripts" >&2
             exit 1
           fi
+          tar -xzOf "$tarball" package/package.json > /tmp/manifest.json
+          node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync("/tmp/manifest.json","utf8"));if(m.publishConfig?.access!=="public"){throw new Error("a scoped package must publish as public")}if(m.version!==JSON.parse(fs.readFileSync("package.json","utf8")).version){throw new Error("the tarball version differs from the repository")}'
           work=$(mktemp -d)
           cd "$work"
           npm init -y >/dev/null
