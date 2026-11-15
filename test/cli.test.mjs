@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +31,26 @@ function run(args, box, { cwd = box.root, env = {} } = {}) {
       XDG_DATA_HOME: box.data,
       ...env,
     },
+  });
+}
+
+function runAsync(args, box) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [BIN, ...args], {
+      cwd: box.root,
+      env: {
+        PATH: process.env.PATH,
+        HOME: box.home,
+        XDG_CONFIG_HOME: box.config,
+        XDG_DATA_HOME: box.data,
+      },
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('error', reject);
+    child.on('close', (status) => resolve({ status, stdout, stderr }));
   });
 }
 
@@ -238,4 +258,23 @@ test('dumping leaves no root config behind, booting writes one', () => {
   assert.equal(booted.status, 1);
   assert.match(booted.stderr, /composes no entries/);
   assert.equal(existsSync(join(profile, 'cordis.yml')), true);
+});
+
+test('concurrent instance adds keep every entry', async () => {
+  const box = sandbox();
+  const names = ['one', 'two', 'three', 'four', 'five', 'six'];
+  const results = await Promise.all(names.map((name) => runAsync(['instance', 'add', name, '--home', join(box.root, name)], box)));
+  assert.deepEqual(results.map((result) => result.status), names.map(() => 0));
+  assert.deepEqual(Object.keys(registry(box).instances).sort(), [...names].sort());
+});
+
+test('a stale registry lock does not block an instance command', () => {
+  const box = sandbox();
+  const lock = join(box.config, 'nanodsh', 'instances.json.lock');
+  mkdirSync(lock, { recursive: true });
+  const past = new Date(Date.now() - 60_000);
+  utimesSync(lock, past, past);
+  const result = run(['instance', 'add', 'work'], box);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(Object.keys(registry(box).instances), ['work']);
 });
