@@ -153,3 +153,22 @@ test('instance add refuses a regular file as a home', () => {
   assert.match(result.stderr, /is not a directory/);
   assert.equal(existsSync(join(box.config, 'nanodsh', 'instances.json')), false);
 });
+
+test('profile create accepts a flag before the name', () => {
+  const box = sandbox();
+  const dshHome = join(box.root, 'dsh');
+  mkdirSync(dshHome, { recursive: true });
+  const result = run(['profile', 'create', '--home', dshHome, 'work'], box);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(join(dshHome, 'profiles', 'work', 'package.json')), true);
+});
+
+test('profile create refuses a bundle flag without a value', () => {
+  const box = sandbox();
+  const dshHome = join(box.root, 'dsh');
+  mkdirSync(dshHome, { recursive: true });
+  const result = run(['profile', 'create', 'second', '--bundle'], box, { env: { DSH_HOME: dshHome } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /--bundle needs a value/);
+  assert.equal(existsSync(join(dshHome, 'profiles', 'second')), false);
+});
