@@ -32,5 +32,6 @@
     "dens": "node scripts/desens.mjs --staged",
     "prepare": "git config core.hooksPath .githooks || true",
     "test": "node --test"
-  }
+  },
+  "license": "MIT"
 }

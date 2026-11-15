@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.1] - 2026-11-15
+
 ### Added
 
 - Core launcher to boot dsh profiles with `--profile`, `--patch`, `--dump-config`, `--dump-default-config`, and `--dump-config-schema` flags, passing all remaining arguments straight through to the app.
