@@ -25,6 +25,7 @@ if (args[0] === 'view') {
   process.exit(Number(process.env.FAKE_VIEW_STATUS ?? 0));
 }
 if (args[0] === 'add') {
+  if (process.env.FAKE_FAIL === '1') process.exit(1);
   const manifest = JSON.parse(process.env.FAKE_MANIFEST);
   const dependencies = { [manifest.name]: manifest.version };
   writeFileSync('package.json', JSON.stringify({ name: 'dsh-instance', private: true, dependencies }, null, 2) + '\\n');
@@ -183,4 +184,24 @@ test('distro add refuses an instance that already selects a distro', () => {
   assert.match(second.stderr, /already selects .*; run "nanodsh distro switch/);
   assert.equal(readFileSync(join(home, 'package.json'), 'utf8'), before);
   assert.equal(calls(box).length, 2);
+});
+
+test('plugin add forwards the allowBuilds of the selected distro', () => {
+  const box = sandbox();
+  const home = join(box.root, 'home');
+  mkdirSync(join(home, 'node_modules', '@local', 'distro'), { recursive: true });
+  mkdirSync(join(home, 'profiles', 'web'), { recursive: true });
+  writeFileSync(join(home, 'package.json'), `${JSON.stringify({ name: 'dsh-instance', private: true, dependencies: { '@local/distro': '1.0.0' } })}\n`);
+  writeFileSync(join(home, 'distro.json'), `${JSON.stringify({ distro: '@local/distro', version: '1.0.0', api: 1 })}\n`);
+  writeFileSync(join(home, 'node_modules', '@local', 'distro', 'package.json'), `${JSON.stringify({
+    name: '@local/distro',
+    version: '1.0.0',
+    dsh: { distro: { api: 1, defaultBundles: [], allowBuilds: ['node-pty', 'koffi'] } },
+    dependencies: {},
+  })}\n`);
+  writeFileSync(join(home, 'profiles', 'web', 'package.json'), `${JSON.stringify({ name: 'p', dsh: { profile: { bundles: [] } } })}\n`);
+  const result = run(['plugin', '--profile', 'web', 'add', '@deepseek-ai/dsh-web-app'], box, { DSH_HOME: home, FAKE_FAIL: '1' });
+  assert.equal(result.status, 1);
+  const lines = calls(box);
+  assert.equal(lines.at(-1), 'add --allow-build=node-pty --allow-build=koffi @deepseek-ai/dsh-web-app');
 });
