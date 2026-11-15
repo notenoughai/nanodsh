@@ -15,6 +15,11 @@ import { VERSION } from '../lib/version.js';
 
 const argv = process.argv.slice(2);
 
+function activate(selection) {
+  process.stderr.write(overriddenNotice(selection));
+  process.env.DSH_HOME = selection.home;
+}
+
 function availableProfiles(home) {
   try {
     return readdirSync(join(home, 'profiles'), { withFileTypes: true })
@@ -42,23 +47,16 @@ try {
   } else if (argv[0] === 'instance') {
     await runInstanceCli(argv.slice(1));
   } else if (argv[0] === 'plugin') {
-    const selection = selectHome(argv.slice(1), process.env, { stopAtPositional: false });
-    process.env.DSH_HOME = selection.home;
-    process.stderr.write(overriddenNotice(selection));
+    activate(selectHome(argv.slice(1), process.env, { stopAtPositional: false }));
     await runPluginCli(argv.slice(1));
   } else if (argv[0] === 'profile') {
-    const selection = selectHome(argv.slice(1), process.env, { stopAtPositional: false });
-    process.env.DSH_HOME = selection.home;
-    process.stderr.write(overriddenNotice(selection));
+    activate(selectHome(argv.slice(1), process.env, { stopAtPositional: false }));
     runProfileCli(argv.slice(1));
   } else if (argv[0] === 'distro') {
-    const selection = selectHome(argv.slice(1), process.env, { stopAtPositional: false });
-    process.env.DSH_HOME = selection.home;
-    process.stderr.write(overriddenNotice(selection));
+    activate(selectHome(argv.slice(1), process.env, { stopAtPositional: false }));
     await runDistroCli(argv.slice(1));
   } else {
     const selection = selectHome(argv);
-    process.env.DSH_HOME = selection.home;
     if (argv.includes('--list-profiles')) {
       const names = availableProfiles(selection.home);
       if (names.length > 0) process.stdout.write(`${names.join('\n')}\n`);
@@ -69,13 +67,17 @@ try {
       if (names.length > 0) process.stdout.write(`${names.join('\n')}\n`);
       process.exit(0);
     }
-    process.stderr.write(overriddenNotice(selection));
     const invocation = parseArgs(argv, VERSION);
+    let active = selection;
+    if (invocation.home !== undefined || invocation.instance !== undefined) {
+      active = selectHome(invocation.home !== undefined ? ['--home', invocation.home] : ['--instance', invocation.instance]);
+    }
+    activate(active);
     if (invocation.profile === undefined) {
-      if (selection.profile !== undefined) invocation.profile = selection.profile;
+      if (active.profile !== undefined) invocation.profile = active.profile;
       else {
-        const available = availableProfiles(selection.home);
-        throw new Error(`nanodsh: no profile selected and ${selection.home} registers none; profiles: ${available.length === 0 ? '(none)' : available.join(', ')}`);
+        const available = availableProfiles(active.home);
+        throw new Error(`nanodsh: no profile selected and ${active.home} registers none; profiles: ${available.length === 0 ? '(none)' : available.join(', ')}`);
       }
     }
     if (invocation.dump === 'config') dumpConfig(invocation);

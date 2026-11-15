@@ -172,3 +172,43 @@ test('profile create refuses a bundle flag without a value', () => {
   assert.match(result.stderr, /--bundle needs a value/);
   assert.equal(existsSync(join(dshHome, 'profiles', 'second')), false);
 });
+
+test('the launcher applies --home placed after the profile name', () => {
+  const box = sandbox();
+  const a = join(box.root, 'a');
+  const b = join(box.root, 'b');
+  mkdirSync(a, { recursive: true });
+  mkdirSync(join(b, 'profiles', 'web'), { recursive: true });
+  writeFileSync(join(b, 'profiles', 'web', 'package.json'), '{"name":"p","dsh":{"profile":{"bundles":[]}}}\n');
+  const result = run(['web', '--home', b], box, { env: { DSH_HOME: a } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /composes no entries/);
+  assert.equal(result.stderr.includes(join(a, 'profiles')), false);
+});
+
+test('the launcher applies --instance placed after the profile name', () => {
+  const box = sandbox();
+  const a = join(box.root, 'a');
+  const b = join(box.root, 'b');
+  mkdirSync(a, { recursive: true });
+  mkdirSync(join(b, 'profiles', 'web'), { recursive: true });
+  writeFileSync(join(b, 'profiles', 'web', 'package.json'), '{"name":"p","dsh":{"profile":{"bundles":[]}}}\n');
+  assert.equal(run(['instance', 'add', 'prod', '--home', b], box).status, 0);
+  const result = run(['web', '--instance', 'prod'], box, { env: { DSH_HOME: a } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /composes no entries/);
+  assert.equal(result.stderr.includes(join(a, 'profiles')), false);
+});
+
+test('the overridden-home notice is printed once', () => {
+  const box = sandbox();
+  const a = join(box.root, 'a');
+  const b = join(box.root, 'b');
+  mkdirSync(a, { recursive: true });
+  mkdirSync(b, { recursive: true });
+  const overridden = run(['distro', 'show', '--home', b], box, { env: { DSH_HOME: a } });
+  assert.equal(overridden.status, 1);
+  assert.match(overridden.stderr, /is overridden/);
+  const same = run(['distro', 'show', '--home', a], box, { env: { DSH_HOME: a } });
+  assert.doesNotMatch(same.stderr, /is overridden/);
+});
