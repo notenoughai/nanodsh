@@ -18,12 +18,12 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-cmdline": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-http-proxy": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-launch-environment": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-official-bundles": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-cmdline": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-http-proxy": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-launch-environment": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-official-bundles": "0.2.2-rc.3",
     "commander": "^15.1.0"
   },
   "scripts": {
