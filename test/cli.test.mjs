@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -211,4 +211,31 @@ test('the overridden-home notice is printed once', () => {
   assert.match(overridden.stderr, /is overridden/);
   const same = run(['distro', 'show', '--home', a], box, { env: { DSH_HOME: a } });
   assert.doesNotMatch(same.stderr, /is overridden/);
+});
+
+test('dumping a profile does not need write access', () => {
+  const box = sandbox();
+  const dshHome = join(box.root, 'dsh');
+  const profile = join(dshHome, 'profiles', 'web');
+  mkdirSync(profile, { recursive: true });
+  writeFileSync(join(profile, 'package.json'), '{"name":"p","dsh":{"profile":{"bundles":[]}}}\n');
+  chmodSync(profile, 0o500);
+  const result = run(['--profile', 'web', '--dump-config'], box, { env: { DSH_HOME: dshHome } });
+  chmodSync(profile, 0o700);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('dumping leaves no root config behind, booting writes one', () => {
+  const box = sandbox();
+  const dshHome = join(box.root, 'dsh');
+  const profile = join(dshHome, 'profiles', 'web');
+  mkdirSync(profile, { recursive: true });
+  writeFileSync(join(profile, 'package.json'), '{"name":"p","dsh":{"profile":{"bundles":[]}}}\n');
+  const dumped = run(['--profile', 'web', '--dump-config'], box, { env: { DSH_HOME: dshHome } });
+  assert.equal(dumped.status, 0, dumped.stderr);
+  assert.equal(existsSync(join(profile, 'cordis.yml')), false);
+  const booted = run(['--profile', 'web'], box, { env: { DSH_HOME: dshHome } });
+  assert.equal(booted.status, 1);
+  assert.match(booted.stderr, /composes no entries/);
+  assert.equal(existsSync(join(profile, 'cordis.yml')), true);
 });

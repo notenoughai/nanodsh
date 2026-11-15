@@ -172,3 +172,15 @@ test('distro add refuses a directory that is not an instance', () => {
   assert.equal(existsSync(join(home, 'distro.json')), false);
   assert.equal(existsSync(box.log), false);
 });
+
+test('distro add refuses an instance that already selects a distro', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  assert.equal(run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box).status, 0);
+  const before = readFileSync(join(home, 'package.json'), 'utf8');
+  const second = run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box);
+  assert.equal(second.status, 1);
+  assert.match(second.stderr, /already selects .*; run "nanodsh distro switch/);
+  assert.equal(readFileSync(join(home, 'package.json'), 'utf8'), before);
+  assert.equal(calls(box).length, 2);
+});
