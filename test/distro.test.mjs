@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +36,10 @@ if (args[0] === 'add') {
   const own = join('node_modules', ...manifest.name.split('/'));
   mkdirSync(own, { recursive: true });
   writeFileSync(join(own, 'package.json'), JSON.stringify(manifest) + '\\n');
+  if (process.env.FAKE_OBSTRUCT === '1') {
+    mkdirSync(join('previous', 'node_modules'), { recursive: true });
+    writeFileSync(join('previous', 'node_modules', 'stale.txt'), 'stale\\n');
+  }
 }
 process.exit(0);
 `;
@@ -132,4 +136,26 @@ test('distro show counts declared hosts without a @deepseek-ai directory', () =>
   const missing = run(['distro', 'show', '--home', home], box);
   assert.equal(missing.status, 0, missing.stderr);
   assert.match(missing.stdout, /hosts\s+1 declared, 0 installed/);
+});
+
+test('distro switch leaves the home unchanged when a move fails', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  assert.equal(run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box).status, 0);
+  const before = readFileSync(join(home, 'package.json'), 'utf8');
+  const result = run(['distro', 'switch', '@nanodsh/distro-standard@0.0.1', '--home', home], box, { FAKE_OBSTRUCT: '1' });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /was left unchanged/);
+  assert.equal(readFileSync(join(home, 'package.json'), 'utf8'), before);
+  assert.deepEqual(readdirSync(home).filter((entry) => entry.startsWith('.distro-staging-')), []);
+});
+
+test('distro switch replaces the tree and removes its staging directory', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  assert.equal(run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box).status, 0);
+  const result = run(['distro', 'switch', '@nanodsh/distro-standard@0.0.1', '--home', home], box);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /is now selected/);
+  assert.deepEqual(readdirSync(home).filter((entry) => entry.startsWith('.distro-staging-')), []);
 });
