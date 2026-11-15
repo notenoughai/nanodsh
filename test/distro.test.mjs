@@ -1,0 +1,135 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import test from 'node:test';
+
+const BIN = fileURLToPath(new URL('../bin/nanodsh.js', import.meta.url));
+
+const MANIFEST = {
+  name: '@nanodsh/distro-standard',
+  version: '0.0.1',
+  dsh: { distro: { api: 1, defaultBundles: ['@deepseek-ai/dsh-base'], allowBuilds: ['node-pty', 'koffi'] } },
+  dependencies: { '@other/host': '1.0.0' },
+};
+
+const FAKE_PNPM = `#!/usr/bin/env node
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+const args = process.argv.slice(2);
+appendFileSync(process.env.FAKE_LOG, args.join(' ') + '\\n');
+if (args[0] === 'view') {
+  process.stdout.write(process.env.FAKE_VIEW ?? '');
+  process.exit(Number(process.env.FAKE_VIEW_STATUS ?? 0));
+}
+if (args[0] === 'add') {
+  const manifest = JSON.parse(process.env.FAKE_MANIFEST);
+  const dependencies = { [manifest.name]: manifest.version };
+  writeFileSync('package.json', JSON.stringify({ name: 'dsh-instance', private: true, dependencies }, null, 2) + '\\n');
+  for (const [dependency, version] of Object.entries(manifest.dependencies ?? {})) {
+    const dir = join('node_modules', ...dependency.split('/'));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: dependency, version }) + '\\n');
+  }
+  const own = join('node_modules', ...manifest.name.split('/'));
+  mkdirSync(own, { recursive: true });
+  writeFileSync(join(own, 'package.json'), JSON.stringify(manifest) + '\\n');
+}
+process.exit(0);
+`;
+
+function sandbox() {
+  const root = mkdtempSync(join(tmpdir(), 'nanodsh-distro-'));
+  const bin = join(root, 'bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, 'pnpm'), FAKE_PNPM);
+  chmodSync(join(bin, 'pnpm'), 0o755);
+  return {
+    root,
+    bin,
+    home: join(root, 'home'),
+    config: join(root, 'config'),
+    data: join(root, 'data'),
+    log: join(root, 'pnpm.log'),
+  };
+}
+
+function run(args, box, overrides = {}) {
+  return spawnSync(process.execPath, [BIN, ...args], {
+    cwd: box.root,
+    encoding: 'utf8',
+    env: {
+      PATH: `${box.bin}:${process.env.PATH}`,
+      HOME: box.home,
+      XDG_CONFIG_HOME: box.config,
+      XDG_DATA_HOME: box.data,
+      FAKE_LOG: box.log,
+      FAKE_VIEW: JSON.stringify(MANIFEST),
+      FAKE_MANIFEST: JSON.stringify(MANIFEST),
+      ...overrides,
+    },
+  });
+}
+
+function calls(box) {
+  return readFileSync(box.log, 'utf8').trim().split('\n');
+}
+
+test('distro add reads allowBuilds from the registry manifest', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  const result = run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(calls(box), [
+    'view @nanodsh/distro-standard@0.0.1 --json',
+    'add --allow-build=node-pty --allow-build=koffi @nanodsh/distro-standard@0.0.1',
+  ]);
+  assert.equal(JSON.parse(readFileSync(join(home, 'distro.json'), 'utf8')).distro, '@nanodsh/distro-standard');
+});
+
+test('distro add warns and installs when the registry cannot be read', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  const result = run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box, { FAKE_VIEW_STATUS: '1' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /could not read @nanodsh\/distro-standard@0\.0\.1 from the registry; installing without its allowBuilds/);
+  assert.deepEqual(calls(box), ['view @nanodsh/distro-standard@0.0.1 --json', 'add @nanodsh/distro-standard@0.0.1']);
+});
+
+test('distro add reads a local directory without the registry', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  const local = join(box.root, 'local-distro');
+  mkdirSync(local);
+  writeFileSync(join(local, 'package.json'), `${JSON.stringify(MANIFEST, null, 2)}\n`);
+  const result = run(['distro', 'add', `file:${local}`, '--home', home], box);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(calls(box), [`add --allow-build=node-pty --allow-build=koffi file:${local}`]);
+});
+
+test('distro add accepts a launcher flag before the package', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  const result = run(['distro', 'add', '--home', home, '@nanodsh/distro-standard@0.0.1'], box);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(calls(box), [
+    'view @nanodsh/distro-standard@0.0.1 --json',
+    'add --allow-build=node-pty --allow-build=koffi @nanodsh/distro-standard@0.0.1',
+  ]);
+  assert.equal(existsSync(join(home, 'distro.json')), true);
+});
+
+test('distro show counts declared hosts without a @deepseek-ai directory', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  assert.equal(run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box).status, 0);
+  const shown = run(['distro', 'show', '--home', home], box);
+  assert.equal(shown.status, 0, shown.stderr);
+  assert.match(shown.stdout, /hosts\s+1 declared, 1 installed/);
+  rmSync(join(home, 'node_modules', '@other'), { recursive: true });
+  const missing = run(['distro', 'show', '--home', home], box);
+  assert.equal(missing.status, 0, missing.stderr);
+  assert.match(missing.stdout, /hosts\s+1 declared, 0 installed/);
+});
