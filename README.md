@@ -14,7 +14,7 @@ The package is not yet published to npm. Build and install it locally:
 
 ```bash
 pnpm pack
-npm install -g ./notenoughai-nanodsh-0.0.1.tgz
+npm install -g ./nanodsh-cli-0.0.1.tgz
 ```
 
 ## Usage
@@ -22,13 +22,13 @@ npm install -g ./notenoughai-nanodsh-0.0.1.tgz
 Each instance pairs a harness home directory with a distro (defaulting to `~/.dsh`).
 
 ```bash
-nanodsh distro add @notenoughai/distro-standard
+nanodsh distro add @nanodsh/distro-standard
 nanodsh profile create work
 nanodsh plugin --profile work add @deepseek-ai/dsh-web-app
 nanodsh work --port 8080
 ```
 
-`@notenoughai/distro-standard` is an example; any npm package declaring `dsh.distro` and providing the host packages can be used as a distro.
+`@nanodsh/distro-standard` is an example; any npm package declaring `dsh.distro` and providing the host packages can be used as a distro.
 
 ### Instances
 

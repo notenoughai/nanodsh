@@ -14,7 +14,7 @@ Node.js >= 20；安装 distro 或插件时需在 `PATH` 中提供 `pnpm`。
 
 ```bash
 pnpm pack
-npm install -g ./notenoughai-nanodsh-0.0.1.tgz
+npm install -g ./nanodsh-cli-0.0.1.tgz
 ```
 
 ## 用法
@@ -22,13 +22,13 @@ npm install -g ./notenoughai-nanodsh-0.0.1.tgz
 每个 instance 将一个 harness home 目录与一个 distro 绑定（默认 instance 为 `~/.dsh`）。
 
 ```bash
-nanodsh distro add @notenoughai/distro-standard
+nanodsh distro add @nanodsh/distro-standard
 nanodsh profile create work
 nanodsh plugin --profile work add @deepseek-ai/dsh-web-app
 nanodsh work --port 8080
 ```
 
-`@notenoughai/distro-standard` 仅为示例，任何声明了 `dsh.distro` 并提供宿主包的 npm 包均可作为 distro。
+`@nanodsh/distro-standard` 仅为示例，任何声明了 `dsh.distro` 并提供宿主包的 npm 包均可作为 distro。
 
 ### Instance 管理
 
