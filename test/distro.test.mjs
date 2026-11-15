@@ -159,3 +159,16 @@ test('distro switch replaces the tree and removes its staging directory', () => 
   assert.match(result.stdout, /is now selected/);
   assert.deepEqual(readdirSync(home).filter((entry) => entry.startsWith('.distro-staging-')), []);
 });
+
+test('distro add refuses a directory that is not an instance', () => {
+  const box = sandbox();
+  const home = join(box.root, 'project');
+  mkdirSync(home);
+  writeFileSync(join(home, 'package.json'), '{"name":"my-own-app","dependencies":{}}\n');
+  const result = run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /is not an instance/);
+  assert.equal(readFileSync(join(home, 'package.json'), 'utf8'), '{"name":"my-own-app","dependencies":{}}\n');
+  assert.equal(existsSync(join(home, 'distro.json')), false);
+  assert.equal(existsSync(box.log), false);
+});

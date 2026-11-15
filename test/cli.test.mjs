@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -98,4 +98,58 @@ test('profile create still refuses an invalid name', () => {
   const result = run(['profile', 'create', '../escaped'], box, { env: { DSH_HOME: dshHome } });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /not a valid profile name/);
+});
+
+test('profile remove keeps the directory a symlink points at', () => {
+  const box = sandbox();
+  const dshHome = join(box.root, 'dsh');
+  const outside = join(box.root, 'outside');
+  mkdirSync(join(dshHome, 'profiles'), { recursive: true });
+  mkdirSync(outside);
+  writeFileSync(join(outside, 'precious.txt'), 'keep\n');
+  symlinkSync(outside, join(dshHome, 'profiles', 'linked'));
+  const result = run(['profile', 'remove', 'linked', '--yes'], box, { env: { DSH_HOME: dshHome } });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(join(outside, 'precious.txt')), true);
+  assert.equal(existsSync(join(dshHome, 'profiles', 'linked')), false);
+});
+
+test('instance remove --purge sees a home another instance reaches through a symlink', () => {
+  const box = sandbox();
+  const real = join(box.root, 'real');
+  const link = join(box.root, 'link');
+  mkdirSync(real, { recursive: true });
+  symlinkSync(real, link);
+  assert.equal(run(['instance', 'add', 'real', '--home', real], box).status, 0);
+  assert.equal(run(['instance', 'add', 'via-link', '--home', link], box).status, 0);
+  writeFileSync(join(real, 'precious.txt'), 'keep\n');
+  const refused = run(['instance', 'remove', 'via-link', '--purge', '--yes'], box);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /shared with real/);
+  assert.equal(existsSync(join(real, 'precious.txt')), true);
+});
+
+test('instance remove --purge removes a symlink and leaves its target', () => {
+  const box = sandbox();
+  const real = join(box.root, 'real');
+  const link = join(box.root, 'link');
+  mkdirSync(real, { recursive: true });
+  writeFileSync(join(real, 'precious.txt'), 'keep\n');
+  symlinkSync(real, link);
+  assert.equal(run(['instance', 'add', 'only', '--home', link], box).status, 0);
+  const removed = run(['instance', 'remove', 'only', '--purge', '--yes'], box);
+  assert.equal(removed.status, 0, removed.stderr);
+  assert.match(removed.stderr, /symbolic link/);
+  assert.equal(existsSync(join(real, 'precious.txt')), true);
+  assert.equal(existsSync(link), false);
+});
+
+test('instance add refuses a regular file as a home', () => {
+  const box = sandbox();
+  const file = join(box.root, 'not-a-home');
+  writeFileSync(file, 'x\n');
+  const result = run(['instance', 'add', 'broken', '--home', file], box);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /is not a directory/);
+  assert.equal(existsSync(join(box.config, 'nanodsh', 'instances.json')), false);
 });
