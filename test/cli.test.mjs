@@ -278,3 +278,22 @@ test('a stale registry lock does not block an instance command', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(Object.keys(registry(box).instances), ['work']);
 });
+
+test('no instance selected is refused instead of falling back to ~/.dsh', () => {
+  const box = sandbox();
+  const result = run(['distro', 'show'], box);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /no instance selected/);
+  assert.match(result.stderr, /instance add default/);
+  assert.equal(existsSync(join(box.home, '.dsh')), false);
+});
+
+test('a registered default instance is used without flags', () => {
+  const box = sandbox();
+  const home = join(box.root, 'inst');
+  assert.equal(run(['instance', 'add', 'default', '--home', home], box).status, 0);
+  const result = run(['distro', 'show'], box);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, new RegExp(`${home} has no distro selection`));
+  assert.doesNotMatch(result.stderr, /no instance selected/);
+});
