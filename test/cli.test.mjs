@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,36 +58,71 @@ function registry(box) {
   return JSON.parse(readFileSync(join(box.config, 'nanodsh', 'instances.json'), 'utf8'));
 }
 
-test('instance add accepts a flag before the name', () => {
+test('instance create accepts a flag before the name', () => {
   const box = sandbox();
   const home = join(box.root, 'instance');
-  const result = run(['instance', 'add', '--home', home, 'work'], box);
+  const result = run(['instance', 'create', '--home', home, 'work'], box);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(registry(box).instances.work.home, home);
 });
 
-test('instance add refuses a flag without a value', () => {
+test('instance create refuses a flag without a value', () => {
   const box = sandbox();
-  const result = run(['instance', 'add', 'work', '--home'], box);
+  const result = run(['instance', 'create', 'work', '--home'], box);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /--home needs a value/);
   assert.equal(existsSync(join(box.config, 'nanodsh', 'instances.json')), false);
 });
 
-test('instance add resolves a relative home before registering it', () => {
+test('instance create resolves a relative home before registering it', () => {
   const box = sandbox();
   const cwd = join(box.root, 'elsewhere');
   mkdirSync(cwd);
-  const result = run(['instance', 'add', 'rel', '--home', '../instances/rel'], box, { cwd });
+  const result = run(['instance', 'create', 'rel', '--home', '../instances/rel'], box, { cwd });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(registry(box).instances.rel.home, resolve(cwd, '../instances/rel'));
+});
+
+test('instance create makes the home it registers', () => {
+  const box = sandbox();
+  const home = join(box.root, 'made', 'deep');
+  const result = run(['instance', 'create', 'work', '--home', home], box);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(statSync(home).isDirectory(), true);
+  assert.equal(registry(box).instances.work.home, home);
+});
+
+test('instance create makes the data home when --home is absent', () => {
+  const box = sandbox();
+  const result = run(['instance', 'create', 'auto'], box);
+  assert.equal(result.status, 0, result.stderr);
+  const home = join(box.data, 'nanodsh', 'instances', 'auto');
+  assert.equal(statSync(home).isDirectory(), true);
+  assert.equal(registry(box).instances.auto.home, home);
+});
+
+test('instance add stays an alias of instance create', () => {
+  const box = sandbox();
+  const home = join(box.root, 'legacy');
+  const result = run(['instance', 'add', 'old', '--home', home], box);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(statSync(home).isDirectory(), true);
+  assert.equal(registry(box).instances.old.home, home);
+});
+
+test('instance help names create and hides the alias', () => {
+  const box = sandbox();
+  const result = run(['instance', '--help'], box);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /create <name>/);
+  assert.doesNotMatch(result.stdout, /add <name>/);
 });
 
 test('instance remove refuses to purge a home another instance uses', () => {
   const box = sandbox();
   const home = join(box.root, 'shared');
-  assert.equal(run(['instance', 'add', 'a', '--home', home], box).status, 0);
-  assert.equal(run(['instance', 'add', 'b', '--home', home], box).status, 0);
+  assert.equal(run(['instance', 'create', 'a', '--home', home], box).status, 0);
+  assert.equal(run(['instance', 'create', 'b', '--home', home], box).status, 0);
   mkdirSync(home, { recursive: true });
   writeFileSync(join(home, 'precious.txt'), 'keep\n');
 
@@ -140,8 +175,8 @@ test('instance remove --purge sees a home another instance reaches through a sym
   const link = join(box.root, 'link');
   mkdirSync(real, { recursive: true });
   symlinkSync(real, link);
-  assert.equal(run(['instance', 'add', 'real', '--home', real], box).status, 0);
-  assert.equal(run(['instance', 'add', 'via-link', '--home', link], box).status, 0);
+  assert.equal(run(['instance', 'create', 'real', '--home', real], box).status, 0);
+  assert.equal(run(['instance', 'create', 'via-link', '--home', link], box).status, 0);
   writeFileSync(join(real, 'precious.txt'), 'keep\n');
   const refused = run(['instance', 'remove', 'via-link', '--purge', '--yes'], box);
   assert.equal(refused.status, 1);
@@ -156,7 +191,7 @@ test('instance remove --purge removes a symlink and leaves its target', () => {
   mkdirSync(real, { recursive: true });
   writeFileSync(join(real, 'precious.txt'), 'keep\n');
   symlinkSync(real, link);
-  assert.equal(run(['instance', 'add', 'only', '--home', link], box).status, 0);
+  assert.equal(run(['instance', 'create', 'only', '--home', link], box).status, 0);
   const removed = run(['instance', 'remove', 'only', '--purge', '--yes'], box);
   assert.equal(removed.status, 0, removed.stderr);
   assert.match(removed.stderr, /symbolic link/);
@@ -164,11 +199,11 @@ test('instance remove --purge removes a symlink and leaves its target', () => {
   assert.equal(existsSync(link), false);
 });
 
-test('instance add refuses a regular file as a home', () => {
+test('instance create refuses a regular file as a home', () => {
   const box = sandbox();
   const file = join(box.root, 'not-a-home');
   writeFileSync(file, 'x\n');
-  const result = run(['instance', 'add', 'broken', '--home', file], box);
+  const result = run(['instance', 'create', 'broken', '--home', file], box);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /is not a directory/);
   assert.equal(existsSync(join(box.config, 'nanodsh', 'instances.json')), false);
@@ -213,7 +248,7 @@ test('the launcher applies --instance placed after the profile name', () => {
   mkdirSync(a, { recursive: true });
   mkdirSync(join(b, 'profiles', 'web'), { recursive: true });
   writeFileSync(join(b, 'profiles', 'web', 'package.json'), '{"name":"p","dsh":{"profile":{"bundles":[]}}}\n');
-  assert.equal(run(['instance', 'add', 'prod', '--home', b], box).status, 0);
+  assert.equal(run(['instance', 'create', 'prod', '--home', b], box).status, 0);
   const result = run(['web', '--instance', 'prod'], box, { env: { DSH_HOME: a } });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /composes no entries/);
@@ -260,10 +295,10 @@ test('dumping leaves no root config behind, booting writes one', () => {
   assert.equal(existsSync(join(profile, 'cordis.yml')), true);
 });
 
-test('concurrent instance adds keep every entry', async () => {
+test('concurrent instance creates keep every entry', async () => {
   const box = sandbox();
   const names = ['one', 'two', 'three', 'four', 'five', 'six'];
-  const results = await Promise.all(names.map((name) => runAsync(['instance', 'add', name, '--home', join(box.root, name)], box)));
+  const results = await Promise.all(names.map((name) => runAsync(['instance', 'create', name, '--home', join(box.root, name)], box)));
   assert.deepEqual(results.map((result) => result.status), names.map(() => 0));
   assert.deepEqual(Object.keys(registry(box).instances).sort(), [...names].sort());
 });
@@ -274,7 +309,7 @@ test('a stale registry lock does not block an instance command', () => {
   mkdirSync(lock, { recursive: true });
   const past = new Date(Date.now() - 60_000);
   utimesSync(lock, past, past);
-  const result = run(['instance', 'add', 'work'], box);
+  const result = run(['instance', 'create', 'work'], box);
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(Object.keys(registry(box).instances), ['work']);
 });
@@ -284,14 +319,14 @@ test('no instance selected is refused instead of falling back to ~/.dsh', () => 
   const result = run(['distro', 'show'], box);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /no instance selected/);
-  assert.match(result.stderr, /instance add default/);
+  assert.match(result.stderr, /instance create default/);
   assert.equal(existsSync(join(box.home, '.dsh')), false);
 });
 
 test('a registered default instance is used without flags', () => {
   const box = sandbox();
   const home = join(box.root, 'inst');
-  assert.equal(run(['instance', 'add', 'default', '--home', home], box).status, 0);
+  assert.equal(run(['instance', 'create', 'default', '--home', home], box).status, 0);
   const result = run(['distro', 'show'], box);
   assert.equal(result.status, 1);
   assert.match(result.stderr, new RegExp(`${home} has no distro selection`));
