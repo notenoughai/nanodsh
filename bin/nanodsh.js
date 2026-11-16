@@ -56,19 +56,21 @@ try {
     activate(selectHome(argv.slice(1), process.env, { stopAtPositional: false }));
     await runDistroCli(argv.slice(1));
   } else {
-    const selection = selectHome(argv);
-    if (argv.includes('--list-profiles')) {
-      const names = availableProfiles(selection.home);
-      if (names.length > 0) process.stdout.write(`${names.join('\n')}\n`);
-      process.exit(0);
-    }
-    if (argv.includes('--list-instances')) {
-      const names = Object.keys(readRegistry().instances).sort();
+    const listProfiles = argv.includes('--list-profiles');
+    const listInstances = argv.includes('--list-instances');
+    if (listProfiles || listInstances) {
+      let selection;
+      try {
+        selection = selectHome(argv);
+      } catch {
+        process.exit(0);
+      }
+      const names = listProfiles ? availableProfiles(selection.home) : Object.keys(readRegistry().instances).sort();
       if (names.length > 0) process.stdout.write(`${names.join('\n')}\n`);
       process.exit(0);
     }
     const invocation = parseArgs(argv, VERSION);
-    let active = selection;
+    let active = selectHome(argv);
     if (invocation.home !== undefined || invocation.instance !== undefined) {
       active = selectHome(invocation.home !== undefined ? ['--home', invocation.home] : ['--instance', invocation.instance]);
     }

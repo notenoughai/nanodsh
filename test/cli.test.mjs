@@ -297,3 +297,21 @@ test('a registered default instance is used without flags', () => {
   assert.match(result.stderr, new RegExp(`${home} has no distro selection`));
   assert.doesNotMatch(result.stderr, /no instance selected/);
 });
+
+test('version and help work without an instance', () => {
+  const box = sandbox();
+  const version = run(['--version'], box);
+  assert.equal(version.status, 0, version.stderr);
+  assert.match(version.stdout, /^0\.0\.1/);
+  const help = run(['--help'], box);
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /Usage: nanodsh/);
+});
+
+test('listing profiles without an instance stays silent and succeeds', () => {
+  const box = sandbox();
+  const result = run(['--list-profiles'], box);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.equal(existsSync(join(box.home, '.dsh')), false);
+});
