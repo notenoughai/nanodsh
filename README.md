@@ -19,10 +19,10 @@ npm install -g ./nanodsh-cli-0.0.1.tgz
 
 ## Usage
 
-Each instance pairs a harness home directory with a distro (defaulting to `~/.dsh`).
+Each instance pairs a harness home directory with a distro. Nothing is implicit: create an instance first, or pass `--home`/`--instance` on every call. Without one the launcher refuses instead of writing to `~/.dsh`, which belongs to the official `dsh` CLI.
 
 ```bash
-nanodsh distro add @nanodsh/distro-standard
+nanodsh instance add default --home ~/dsh --distro @nanodsh/distro-standard
 nanodsh profile create work
 nanodsh plugin --profile work add @deepseek-ai/dsh-web-app
 nanodsh work --port 8080

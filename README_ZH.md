@@ -19,10 +19,10 @@ npm install -g ./nanodsh-cli-0.0.1.tgz
 
 ## 用法
 
-每个 instance 将一个 harness home 目录与一个 distro 绑定（默认 instance 为 `~/.dsh`）。
+每个 instance 将一个 harness home 目录与一个 distro 绑定。没有隐式 home：先建一个 instance，或者每次调用都带 `--home`/`--instance`。两者都不给时启动器会直接报错，而不是写入官方的 `dsh` 占用的 `~/.dsh`。
 
 ```bash
-nanodsh distro add @nanodsh/distro-standard
+nanodsh instance add default --home ~/dsh --distro @nanodsh/distro-standard
 nanodsh profile create work
 nanodsh plugin --profile work add @deepseek-ai/dsh-web-app
 nanodsh work --port 8080
