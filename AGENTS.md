@@ -78,6 +78,6 @@ Public account names and public work addresses may appear, after checking each o
 
 ## Versions and release
 
-- Versions follow semver; a breaking change under 0.x bumps the minor version.
+- Versions follow semver.
 - A release commit changes the top of `CHANGELOG.md` (adds a versioned section with date and an empty `[Unreleased]`), bumps `package.json`, and updates any version references in both READMEs if present.
 - While releasing, read `[Unreleased]` once more and cut anything that is not a fact.
