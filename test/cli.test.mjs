@@ -200,6 +200,37 @@ test('plugin add seeds a new profile with the distro default bundles', () => {
   assert.deepEqual(manifest.dsh.profile.bundles, ['@deepseek-ai/dsh-base']);
 });
 
+test('plugin add pins an aliased base to the version installed under its name', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  const distro = join(home, 'node_modules', '@local', 'distro-fake');
+  const base = join(home, 'node_modules', '@deepseek-ai', 'dsh-base');
+  mkdirSync(distro, { recursive: true });
+  mkdirSync(base, { recursive: true });
+  writeFileSync(join(home, 'distro.json'), JSON.stringify({ distro: '@local/distro-fake', version: '0.0.0', api: 1 }));
+  writeFileSync(join(home, 'package.json'), JSON.stringify({ name: 'dsh-instance', private: true, dependencies: { '@local/distro-fake': 'file:./distro' } }));
+  writeFileSync(join(distro, 'package.json'), JSON.stringify({
+    name: '@local/distro-fake',
+    version: '0.0.0',
+    dsh: { distro: { api: 1, defaultBundles: [] } },
+    dependencies: { '@deepseek-ai/dsh-base': 'npm:@nanodsh/dsh-base-trim@0.2.2-rc.3' },
+  }));
+  writeFileSync(join(base, 'package.json'), JSON.stringify({ name: '@nanodsh/dsh-base-trim', version: '0.2.2-rc.3' }));
+  const argsFile = join(box.root, 'pnpm-args');
+  const bin = join(box.root, 'bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, 'pnpm'), `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsFile}'\nexit 0\n`);
+  chmodSync(join(bin, 'pnpm'), 0o755);
+
+  const result = run(['plugin', '--profile', 'web', 'add', '@deepseek-ai/dsh-headless'], box, {
+    env: { DSH_HOME: home, PATH: `${bin}:${process.env.PATH}` },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const recorded = readFileSync(argsFile, 'utf8');
+  assert.match(recorded, /@deepseek-ai\/dsh-headless@0\.2\.2-rc\.3/);
+  assert.doesNotMatch(recorded, /file:|npm:/);
+});
+
 test('profile create still refuses an invalid name', () => {
   const box = sandbox();
   const dshHome = join(box.root, 'dsh');
