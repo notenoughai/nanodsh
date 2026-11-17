@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { resolveInstance } from '../lib/instance.js';
 
-function instance({ base, installed } = {}) {
+function instance({ runtime, base } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'nanodsh-instance-'));
   const distro = join(home, 'node_modules', '@local', 'distro');
   mkdirSync(distro, { recursive: true });
@@ -17,25 +17,25 @@ function instance({ base, installed } = {}) {
     dsh: { distro: { api: 1, defaultBundles: [] } },
     dependencies: base === undefined ? {} : { '@deepseek-ai/dsh-base': base },
   }));
-  if (installed !== undefined) {
-    const dir = join(home, 'node_modules', '@deepseek-ai', 'dsh-base');
+  if (runtime !== undefined) {
+    const dir = join(home, 'node_modules', '@deepseek-ai', 'dsh-app-boot');
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: '@nanodsh/dsh-base-trim', version: installed }));
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-app-boot', version: runtime }));
   }
   return home;
 }
 
-test('an aliased base reports the version installed under its name', () => {
-  const home = instance({ base: 'npm:@nanodsh/dsh-base-trim@0.2.2-rc.3', installed: '0.2.2-rc.3' });
+test('the pin version is the runtime the instance provides', () => {
+  const home = instance({ runtime: '0.2.2-rc.3' });
   assert.equal(resolveInstance(home).bundleVersion, '0.2.2-rc.3');
 });
 
-test('a plain declared base version is used when base is not installed', () => {
+test('an aliased base does not change the pin version', () => {
+  const home = instance({ runtime: '0.2.2-rc.3', base: 'npm:@nanodsh/dsh-base-trim@0.1.0' });
+  assert.equal(resolveInstance(home).bundleVersion, '0.2.2-rc.3');
+});
+
+test('without an installed runtime there is no pin version', () => {
   const home = instance({ base: '0.2.2-rc.3' });
-  assert.equal(resolveInstance(home).bundleVersion, '0.2.2-rc.3');
-});
-
-test('an aliased base that is not installed yields no version', () => {
-  const home = instance({ base: 'file:/tmp/base-trim' });
   assert.equal(resolveInstance(home).bundleVersion, undefined);
 });

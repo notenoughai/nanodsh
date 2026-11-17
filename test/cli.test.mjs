@@ -200,11 +200,11 @@ test('plugin add seeds a new profile with the distro default bundles', () => {
   assert.deepEqual(manifest.dsh.profile.bundles, ['@deepseek-ai/dsh-base']);
 });
 
-test('plugin add pins an aliased base to the version installed under its name', () => {
+test('plugin add pins host packages to the runtime version the instance provides', () => {
   const box = sandbox();
   const home = join(box.root, 'instance');
   const distro = join(home, 'node_modules', '@local', 'distro-fake');
-  const base = join(home, 'node_modules', '@deepseek-ai', 'dsh-base');
+  const base = join(home, 'node_modules', '@deepseek-ai', 'dsh-app-boot');
   mkdirSync(distro, { recursive: true });
   mkdirSync(base, { recursive: true });
   writeFileSync(join(home, 'distro.json'), JSON.stringify({ distro: '@local/distro-fake', version: '0.0.0', api: 1 }));
@@ -215,7 +215,7 @@ test('plugin add pins an aliased base to the version installed under its name', 
     dsh: { distro: { api: 1, defaultBundles: [] } },
     dependencies: { '@deepseek-ai/dsh-base': 'npm:@nanodsh/dsh-base-trim@0.2.2-rc.3' },
   }));
-  writeFileSync(join(base, 'package.json'), JSON.stringify({ name: '@nanodsh/dsh-base-trim', version: '0.2.2-rc.3' }));
+  writeFileSync(join(base, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-app-boot', version: '0.2.2-rc.3' }));
   const argsFile = join(box.root, 'pnpm-args');
   const bin = join(box.root, 'bin');
   mkdirSync(bin, { recursive: true });
