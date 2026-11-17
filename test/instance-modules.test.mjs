@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import * as launcherAppBoot from '@deepseek-ai/dsh-app-boot';
-import { loadAppBoot } from '../lib/app-boot.js';
+import * as launcherHttpProxy from '@deepseek-ai/dsh-http-proxy';
+import { loadAppBoot, loadInstanceModule } from '../lib/instance-modules.js';
 
 function home(options = {}) {
   const root = mkdtempSync(join(tmpdir(), 'nanodsh-app-boot-'));
@@ -39,6 +40,27 @@ test('loadAppBoot falls back to the launcher copy and says so', async () => {
   }
   assert.match(written.join(''), /does not provide @deepseek-ai\/dsh-app-boot/);
   assert.match(written.join(''), /using the launcher copy/);
+});
+
+test('loadInstanceModule loads one home once', async () => {
+  const dir = home();
+  const first = await loadInstanceModule(dir, '@deepseek-ai/dsh-http-proxy');
+  const second = await loadInstanceModule(dir, '@deepseek-ai/dsh-http-proxy');
+  assert.equal(first, second);
+});
+
+test('loadInstanceModule falls back for http-proxy too', async () => {
+  const dir = home({ stub: false });
+  const written = [];
+  const write = process.stderr.write;
+  process.stderr.write = (chunk) => { written.push(String(chunk)); return true; };
+  try {
+    const loaded = await loadInstanceModule(dir, '@deepseek-ai/dsh-http-proxy');
+    assert.equal(loaded.installProxyFromEnvironment, launcherHttpProxy.installProxyFromEnvironment);
+  } finally {
+    process.stderr.write = write;
+  }
+  assert.match(written.join(''), /does not provide @deepseek-ai\/dsh-http-proxy/);
 });
 
 test('loadAppBoot loads one home once', async () => {
