@@ -1,5 +1,8 @@
 # nanodsh
 
+[![npm](https://img.shields.io/npm/v/@nanodsh/cli?label=npm&color=cb3837&logo=npm&logoColor=fff)](https://www.npmjs.com/package/@nanodsh/cli)
+[![dsh](https://img.shields.io/badge/dsh-powered-4D6BFE)](https://www.npmjs.com/package/@deepseek-ai/dsh)
+
 一个极简的 dsh profile 启动器。
 
 nanodsh 仅解析自身参数（选择 profile、叠加 patch 或导出配置），其余参数原样透传给 profile 对应的 app。它不自带基础环境、内置 bundle 或 profile 模板；profile 依赖的宿主环境由 instance 所配置的 distro 提供。

@@ -1,5 +1,8 @@
 # nanodsh
 
+[![npm](https://img.shields.io/npm/v/@nanodsh/cli?label=npm&color=cb3837&logo=npm&logoColor=fff)](https://www.npmjs.com/package/@nanodsh/cli)
+[![dsh](https://img.shields.io/badge/dsh-powered-4D6BFE)](https://www.npmjs.com/package/@deepseek-ai/dsh)
+
 A minimal launcher for dsh profiles.
 
 nanodsh parses only its own flags (selecting a profile, applying patch overlays, or dumping configuration) and forwards all remaining arguments to the profile's app. It ships without a base environment, built-in bundles, or profile templates; profiles resolve against the distro configured for an instance.
