@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `nanodsh instance create` replaces `nanodsh instance add` and makes the home directory; `instance add` still works as an alias.
 - Nothing is selected by default: without `--home`, `--instance`, `NANODSH_INSTANCE`, `$DSH_HOME`, or a registered default instance, the launcher refuses instead of using `~/.dsh`.
 
+### Fixed
+
+- `nanodsh plugin --profile <name> add` now seeds a missing profile with the distro's default bundles, so a profile built from an app bundle alone no longer starts without `@deepseek-ai/dsh-base`.
+
 ## [0.0.1] - 2026-11-15
 
 ### Added
