@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const BIN = fileURLToPath(new URL('../bin/nanodsh.js', import.meta.url));
+const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
 function sandbox() {
   const root = mkdtempSync(join(tmpdir(), 'nanodsh-cli-'));
@@ -421,7 +422,7 @@ test('version and help work without an instance', () => {
   const box = sandbox();
   const version = run(['--version'], box);
   assert.equal(version.status, 0, version.stderr);
-  assert.match(version.stdout, /^0\.0\.1/);
+  assert.equal(version.stdout.trim(), PACKAGE_VERSION);
   const help = run(['--help'], box);
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /Usage: nanodsh/);
