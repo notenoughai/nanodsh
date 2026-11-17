@@ -6,6 +6,14 @@
   },
   "packageManager": "pnpm@12.18.0",
   "description": "Boot a dsh profile, and nothing else.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/notenoughai/nanodsh.git"
+  },
+  "homepage": "https://github.com/notenoughai/nanodsh#readme",
+  "bugs": {
+    "url": "https://github.com/notenoughai/nanodsh/issues"
+  },
   "type": "module",
   "bin": {
     "nanodsh": "bin/nanodsh.js"
