@@ -1,7 +1,10 @@
 # nanodsh
 
+English | [中文](README_ZH.md)
+
 [![npm](https://img.shields.io/npm/v/@nanodsh/cli?label=npm&color=cb3837&logo=npm&logoColor=fff)](https://www.npmjs.com/package/@nanodsh/cli)
-[![dsh](https://img.shields.io/badge/dsh-powered-4D6BFE)](https://www.npmjs.com/package/@deepseek-ai/dsh)
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
+[![](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
 A minimal launcher for dsh profiles.
 
