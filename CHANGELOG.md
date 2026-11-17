@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - `nanodsh plugin --profile <name> add` now seeds a missing profile with the distro's default bundles, so a profile built from an app bundle alone no longer starts without `@deepseek-ai/dsh-base`.
+- The launcher boots with the `@deepseek-ai/dsh-app-boot` its instance provides, so changes made in the web UI settings pages (the preview notice included) are saved instead of failing with `profile reload requires the root Include entry`.
 
 ## [0.0.1] - 2026-11-15
 
