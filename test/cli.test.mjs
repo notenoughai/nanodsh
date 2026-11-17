@@ -137,6 +137,34 @@ test('instance remove refuses to purge a home another instance uses', () => {
   assert.deepEqual(Object.keys(registry(box).instances), ['b']);
 });
 
+test('the launcher boots with the app-boot the instance provides', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  const pkg = join(home, 'node_modules', '@deepseek-ai', 'dsh-app-boot');
+  mkdirSync(join(home, 'profiles', 'demo'), { recursive: true });
+  mkdirSync(pkg, { recursive: true });
+  writeFileSync(join(home, 'package.json'), JSON.stringify({ name: 'dsh-instance', private: true }));
+  writeFileSync(join(home, 'profiles', 'demo', 'package.json'), JSON.stringify({ name: 'dsh-profile-demo', private: true, dsh: { profile: { bundles: [] } } }));
+  writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-app-boot', version: '0.0.0', type: 'module', exports: { '.': './index.js' } }));
+  writeFileSync(join(pkg, 'index.js'), [
+    "import { join } from 'node:path';",
+    'export const StartupError = class StartupError extends Error {};',
+    'export const PluginPackages = class PluginPackages {};',
+    'export function loadLayeredEnv() { return new Map(); }',
+    "export function loadProfile(binName, name, installAnchor, home) { return { name, dir: join(home, 'profiles', name), patchPath: join(home, 'profiles', name, 'cordis.patch.yml'), layers: [{ packageName: 'stub-bundle' }] }; }",
+    'export function reportSkippedBundles() {}',
+    'export function loadOverlayPatches() { return {}; }',
+    'export async function createRuntimeResolution() { return {}; }',
+    'export function readProfilePatches() { return []; }',
+    "export async function boot() { throw new Error('stub boot used'); }",
+  ].join('\n'));
+
+  const result = run(['demo'], box, { env: { DSH_HOME: home } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /stub boot used/);
+  assert.doesNotMatch(result.stderr, /does not provide @deepseek-ai\/dsh-app-boot/);
+});
+
 test('plugin refuses a profile name that leaves profiles/', () => {
   const box = sandbox();
   const dshHome = join(box.root, 'dsh');
