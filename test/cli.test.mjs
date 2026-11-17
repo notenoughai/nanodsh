@@ -147,6 +147,31 @@ test('plugin refuses a profile name that leaves profiles/', () => {
   assert.equal(existsSync(join(dshHome, 'escaped')), false);
 });
 
+test('plugin add seeds a new profile with the distro default bundles', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  const distro = join(home, 'node_modules', '@local', 'distro-fake');
+  mkdirSync(distro, { recursive: true });
+  writeFileSync(join(home, 'distro.json'), JSON.stringify({ distro: '@local/distro-fake', version: '0.0.0', api: 1 }));
+  writeFileSync(join(home, 'package.json'), JSON.stringify({ name: 'dsh-instance', private: true, dependencies: { '@local/distro-fake': 'file:./distro' } }));
+  writeFileSync(join(distro, 'package.json'), JSON.stringify({
+    name: '@local/distro-fake',
+    version: '0.0.0',
+    dsh: { distro: { api: 1, defaultBundles: ['@deepseek-ai/dsh-base'] } },
+  }));
+  const bin = join(box.root, 'bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, 'pnpm'), '#!/bin/sh\nexit 0\n');
+  chmodSync(join(bin, 'pnpm'), 0o755);
+
+  const result = run(['plugin', '--profile', 'web', 'add', '@deepseek-ai/dsh-web-app'], box, {
+    env: { DSH_HOME: home, PATH: `${bin}:${process.env.PATH}` },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const manifest = JSON.parse(readFileSync(join(home, 'profiles', 'web', 'package.json'), 'utf8'));
+  assert.deepEqual(manifest.dsh.profile.bundles, ['@deepseek-ai/dsh-base']);
+});
+
 test('profile create still refuses an invalid name', () => {
   const box = sandbox();
   const dshHome = join(box.root, 'dsh');
