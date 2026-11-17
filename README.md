@@ -10,11 +10,10 @@ Node.js >= 20, with `pnpm` on `PATH` for installing distros and plugins.
 
 ## Install
 
-The package is not yet published to npm. Build and install it locally:
+Install the launcher from npm:
 
 ```bash
-pnpm pack
-npm install -g ./nanodsh-cli-0.0.1.tgz
+npm install -g @nanodsh/cli
 ```
 
 ## Usage

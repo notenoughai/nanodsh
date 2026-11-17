@@ -10,11 +10,10 @@ Node.js >= 20；安装 distro 或插件时需在 `PATH` 中提供 `pnpm`。
 
 ## 安装
 
-该包尚未发布至 npm，可从源码打包并在本地安装：
+从 npm 安装启动器：
 
 ```bash
-pnpm pack
-npm install -g ./nanodsh-cli-0.0.1.tgz
+npm install -g @nanodsh/cli
 ```
 
 ## 用法
