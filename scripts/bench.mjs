@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const bin = fileURLToPath(new URL('../bin/nanodsh.js', import.meta.url));
+const bin = fileURLToPath(new URL('../packages/cli/bin/nanodsh.js', import.meta.url));
 const iterations = Number(process.argv[2] ?? 15);
 
 function sample(args, env) {
