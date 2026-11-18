@@ -20,7 +20,9 @@
   },
   "files": [
     "bin",
-    "lib"
+    "lib",
+    "README.md",
+    "README_ZH.md"
   ],
   "engines": {
     "node": ">=20"
@@ -33,6 +35,8 @@
     "commander": "^15.1.0"
   },
   "scripts": {
+    "prepack": "cp ../../README.md ../../README_ZH.md .",
+    "postpack": "rm -f README.md README_ZH.md",
     "check": "for file in bin/*.js lib/*.js; do node --check \"$file\" || exit 1; done",
     "test": "node --test test/*.test.mjs"
   },

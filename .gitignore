@@ -1,3 +1,5 @@
 node_modules/
 *.tgz
 .cache/
+packages/*/README.md
+packages/*/README_ZH.md
