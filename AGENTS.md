@@ -7,14 +7,17 @@ This file is agent instructions, not user documentation. The rule that the repos
 ## Layout
 
 ```
-bin/                CLI entry point (nanodsh.js)
-lib/                launcher implementation: args, distro, profile, plugin, instance, diagnostics, completion
-scripts/            benchmarks (bench.mjs)
-test/               unit and CLI tests (node:test), plus golden completion fixtures
+packages/core/      @nanodsh/core: instances, distros, profiles, plugins, boot, diagnostics
+packages/cli/       @nanodsh/cli: flags, completion, printing, exit codes; bin/nanodsh.js
+examples/           embed.mjs, the core driven without the CLI
+scripts/            benchmarks and the desensitization scan
+test/               the scan's own tests
 CHANGELOG.md        changelog, English only
 README.md           user-facing documentation
 README_ZH.md        Chinese translation of README.md
 ```
+
+Each package keeps its own tests under `packages/*/test`: core tests import the package, CLI tests spawn `packages/cli/bin/nanodsh.js`.
 
 Anything a person needs in order to use or change the package lives here. Everything else stays out of the repository.
 
@@ -22,10 +25,11 @@ Anything a person needs in order to use or change the package lives here. Everyt
 
 ```sh
 pnpm install --frozen-lockfile   # before any claim that tests pass
-pnpm check                       # syntax check across bin/, lib/, scripts/, and test/
-pnpm test                        # unit and CLI tests (node --test)
+pnpm check                       # syntax check across both packages, scripts/ and test/
+pnpm test                        # every package's tests (node --test)
+pnpm example                     # examples/embed.mjs
 pnpm bench                       # launcher overhead benchmark
-pnpm pack                        # build release tarball (must exclude test/ and scripts/)
+pnpm --filter @nanodsh/cli pack  # release tarball (must exclude test/ and scripts/)
 ```
 
 Both gates (`pnpm check` and `pnpm test`) must be green before delivery. Rerun them after a change; do not cite an earlier run.
@@ -57,7 +61,8 @@ Both gates (`pnpm check` and `pnpm test`) must be green before delivery. Rerun t
 
 ## Code
 
-- Plain JavaScript ESM throughout (`.js` in `bin/` and `lib/`, `.mjs` in `scripts/` and `test/`). Import across packages by name; local relative imports carry `.js` (or `.mjs`).
+- Plain JavaScript ESM throughout (`.js` in each package's `bin/` and `lib/`, `.mjs` in `examples/`, `scripts/` and `test/`). Import across packages by name; local relative imports carry `.js` (or `.mjs`).
+- `@nanodsh/core` never prints, never calls `process.exit` and never installs a signal handler: it returns data, or reports through a `warn` callback the caller passes in. A function that touches an instance takes `home` explicitly.
 - No comments by default. Documentation comments state the contract in at most two lines. Put the reasoning in the commit message.
 - Launcher flags precede app arguments; stop flag parsing at the first unrecognized argument and forward the rest unchanged.
 - Published tarballs (`files` in `package.json`) ship only `bin/` and `lib/`, never `test/` or `scripts/`.

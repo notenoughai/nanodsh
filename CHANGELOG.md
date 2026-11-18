@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `@nanodsh/core` carries profiles, instances, distros and the boot itself without a command line; `@nanodsh/cli` keeps the flags, the printing and the exit codes and depends on it. Embedding the launcher no longer brings in commander or a process that writes to stdout.
+
 ## [0.0.2] - 2026-11-17
 
 ### Changed
