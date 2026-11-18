@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 
 const VERSION = 1;
 
-export function registryFile(env = process.env) {
+export function registryFile(env) {
   const configured = env.XDG_CONFIG_HOME;
   const base = configured !== undefined && configured.trim() !== '' ? configured : join(homedir(), '.config');
   return join(base, 'nanodsh', 'instances.json');
@@ -16,7 +16,7 @@ export function expandHome(path) {
   return path;
 }
 
-export function readRegistry(env = process.env) {
+export function readRegistry(env) {
   const file = registryFile(env);
   if (!existsSync(file)) return { version: VERSION, instances: {} };
   let parsed;
@@ -31,7 +31,7 @@ export function readRegistry(env = process.env) {
   return { version: VERSION, default: parsed.default, instances: parsed.instances ?? {} };
 }
 
-export function writeRegistry(registry, env = process.env) {
+export function writeRegistry(registry, env) {
   const file = registryFile(env);
   mkdirSync(dirname(file), { recursive: true });
   const staging = `${file}.staging-${process.pid}`;
@@ -72,7 +72,7 @@ function acquireLock(file) {
   }
 }
 
-export function updateRegistry(mutate, env = process.env) {
+export function updateRegistry(mutate, env) {
   const file = registryFile(env);
   mkdirSync(dirname(file), { recursive: true });
   const release = acquireLock(file);

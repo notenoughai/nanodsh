@@ -1,8 +1,4 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { resolveDshHome } from '@deepseek-ai/dsh-home-paths';
-import { initProfile, readProfilePlugins, reconcileProfilePlugins } from '@deepseek-ai/dsh-app-boot';
-import { INSTALL_ANCHOR, NAME, isPlainVersion, isProfileName, resolveInstance, runPnpm } from '@nanodsh/core';
+import { runPluginCommand } from '@nanodsh/core';
 
 const HELP = `Usage: nanodsh plugin --profile <name> <pnpm arguments...>
 
@@ -25,12 +21,7 @@ function takeFlag(argv, name) {
   return { value, rest };
 }
 
-function pinHostVersions(args, version) {
-  if (version === undefined || !isPlainVersion(version)) return args;
-  return args.map((argument) => (argument.startsWith('@deepseek-ai/') && argument.lastIndexOf('@') === 0 ? `${argument}@${version}` : argument));
-}
-
-export async function runPluginCli(argv) {
+export async function runPluginCli(argv, { home }) {
   if (argv.length === 0 || argv.includes('-h') || argv.includes('--help')) {
     process.stdout.write(HELP);
     return;
@@ -39,30 +30,12 @@ export async function runPluginCli(argv) {
   if (profileFlag.value === undefined || profileFlag.value === '') {
     throw new Error('nanodsh: plugin needs --profile <name>');
   }
-  const name = profileFlag.value;
-  if (!isProfileName(name)) throw new Error(`nanodsh: ${JSON.stringify(name)} is not a valid profile name`);
   const withoutSelection = takeFlag(takeFlag(profileFlag.rest, '--instance').rest, '--home').rest;
-  if (withoutSelection.length === 0) {
-    throw new Error('nanodsh: plugin needs pnpm arguments to forward, for example "add <package>"');
-  }
-  const home = resolveDshHome();
-  const profileDir = join(home, 'profiles', name);
-  const instance = resolveInstance(home);
-  if (!existsSync(join(profileDir, 'package.json'))) {
-    initProfile(profileDir, instance?.defaultBundles ?? []);
-    process.stderr.write(`nanodsh: initialized profile ${name} at ${profileDir}\n`);
-  }
-  const installAnchor = instance?.installAnchor ?? INSTALL_ANCHOR;
-  const forwarded = withoutSelection[0] === 'add' ? pinHostVersions(withoutSelection, instance?.bundleVersion) : withoutSelection;
-  const builds = ['add', 'install', 'update'].includes(withoutSelection[0]) ? (instance?.allowBuilds ?? []) : [];
-  const args = builds.length === 0 ? forwarded : [forwarded[0], ...builds.map((name) => `--allow-build=${name}`), ...forwarded.slice(1)];
-  const location = { binName: NAME, profileDir, installAnchor };
-  const before = readProfilePlugins(location);
-  await runPnpm(args, profileDir);
-  const { plugins, addedPlainDependencies } = reconcileProfilePlugins({ ...location, before, preserveDisabled: true });
-  const enabled = plugins.dependencies.filter((dependency) => dependency.enabled).map((dependency) => dependency.name);
-  process.stdout.write(`nanodsh: profile ${name} bundles: ${enabled.length === 0 ? '(none)' : enabled.join(', ')}\n`);
-  if (addedPlainDependencies.length > 0) {
-    process.stdout.write(`nanodsh: installed but not a bundle: ${addedPlainDependencies.join(', ')}\n`);
+  const result = await runPluginCommand({ home, profile: profileFlag.value, args: withoutSelection });
+  for (const notice of result.notices) process.stderr.write(`${notice}\n`);
+  const bundles = result.enabled.length === 0 ? '(none)' : result.enabled.join(', ');
+  process.stdout.write(`nanodsh: profile ${result.profile} bundles: ${bundles}\n`);
+  if (result.addedPlainDependencies.length > 0) {
+    process.stdout.write(`nanodsh: installed but not a bundle: ${result.addedPlainDependencies.join(', ')}\n`);
   }
 }

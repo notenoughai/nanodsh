@@ -27,17 +27,11 @@ test('loadAppBoot loads the copy the instance provides', async () => {
   assert.equal(appBoot.marker, 'instance');
 });
 
-test('loadAppBoot falls back to the launcher copy and says so', async () => {
+test('loadAppBoot falls back to the launcher copy and hands the warning to the caller', async () => {
   const dir = home({ stub: false });
   const written = [];
-  const write = process.stderr.write;
-  process.stderr.write = (chunk) => { written.push(String(chunk)); return true; };
-  try {
-    const appBoot = await loadAppBoot(dir);
-    assert.equal(appBoot.PluginPackages, launcherAppBoot.PluginPackages);
-  } finally {
-    process.stderr.write = write;
-  }
+  const appBoot = await loadAppBoot(dir, { warn: (line) => written.push(line) });
+  assert.equal(appBoot.PluginPackages, launcherAppBoot.PluginPackages);
   assert.match(written.join(''), /does not provide @deepseek-ai\/dsh-app-boot/);
   assert.match(written.join(''), /using the launcher copy/);
 });
@@ -52,14 +46,8 @@ test('loadInstanceModule loads one home once', async () => {
 test('loadInstanceModule falls back for http-proxy too', async () => {
   const dir = home({ stub: false });
   const written = [];
-  const write = process.stderr.write;
-  process.stderr.write = (chunk) => { written.push(String(chunk)); return true; };
-  try {
-    const loaded = await loadInstanceModule(dir, '@deepseek-ai/dsh-http-proxy');
-    assert.equal(loaded.installProxyFromEnvironment, launcherHttpProxy.installProxyFromEnvironment);
-  } finally {
-    process.stderr.write = write;
-  }
+  const loaded = await loadInstanceModule(dir, '@deepseek-ai/dsh-http-proxy', { warn: (line) => written.push(line) });
+  assert.equal(loaded.installProxyFromEnvironment, launcherHttpProxy.installProxyFromEnvironment);
   assert.match(written.join(''), /does not provide @deepseek-ai\/dsh-http-proxy/);
 });
 

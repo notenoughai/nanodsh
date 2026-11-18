@@ -7,13 +7,26 @@ import { runInstanceCli } from '../lib/instance-cli.js';
 import { runPluginCli } from '../lib/plugin-cli.js';
 import { runProfileCli } from '../lib/profile-cli.js';
 import { renderCompletion, SHELLS } from '../lib/completions.js';
-import { VERSION, dumpConfig, dumpConfigSchema, dumpDefaultConfig, overriddenNotice, readRegistry, runProfile, selectHome } from '@nanodsh/core';
+import {
+  VERSION,
+  boot,
+  composeConfig,
+  composeDefaultConfig,
+  composeSchema,
+  overriddenNotice,
+  readRegistry,
+  selectHome,
+} from '@nanodsh/core';
 
 const argv = process.argv.slice(2);
+const env = process.env;
 
-function activate(selection) {
-  process.stderr.write(overriddenNotice(selection));
-  process.env.DSH_HOME = selection.home;
+function warn(line) {
+  process.stderr.write(line);
+}
+
+function announce(selection) {
+  warn(overriddenNotice(selection, env));
 }
 
 function availableProfiles(home) {
@@ -25,6 +38,34 @@ function availableProfiles(home) {
   } catch {
     return [];
   }
+}
+
+function handleSignals(session) {
+  const interrupt = (code) => {
+    void session.stop(code).then((settled) => process.exit(settled));
+  };
+  process.on('SIGINT', () => interrupt(130));
+  process.on('SIGTERM', () => interrupt(0));
+}
+
+async function dump(invocation, home) {
+  if (invocation.dump === 'config') {
+    const composed = composeConfig({ home, profile: invocation.profile, fromDefaultProfile: invocation.fromDefaultProfile, patches: invocation.patches });
+    for (const notice of composed.notices) warn(notice);
+    process.stdout.write(composed.text);
+    return;
+  }
+  if (invocation.dump === 'default') {
+    const composed = composeDefaultConfig({ home, profile: invocation.profile, fromDefaultProfile: invocation.fromDefaultProfile });
+    for (const notice of composed.notices) warn(notice);
+    process.stdout.write(composed.text);
+    return;
+  }
+  const composed = await composeSchema({ home, profile: invocation.profile, fromDefaultProfile: invocation.fromDefaultProfile, patches: invocation.patches });
+  for (const notice of composed.notices) warn(notice);
+  process.stdout.write(`${JSON.stringify(composed.dump, null, 2)}\n`);
+  for (const line of composed.diagnostics) warn(line);
+  if (!composed.complete) process.exitCode = 1;
 }
 
 try {
@@ -41,36 +82,39 @@ try {
       process.exit(2);
     }
   } else if (argv[0] === 'instance') {
-    await runInstanceCli(argv.slice(1));
+    await runInstanceCli(argv.slice(1), { env });
   } else if (argv[0] === 'plugin') {
-    activate(selectHome(argv.slice(1), process.env, { stopAtPositional: false }));
-    await runPluginCli(argv.slice(1));
+    const selection = selectHome(argv.slice(1), env, { stopAtPositional: false });
+    announce(selection);
+    await runPluginCli(argv.slice(1), { home: selection.home });
   } else if (argv[0] === 'profile') {
-    activate(selectHome(argv.slice(1), process.env, { stopAtPositional: false }));
-    runProfileCli(argv.slice(1));
+    const selection = selectHome(argv.slice(1), env, { stopAtPositional: false });
+    announce(selection);
+    runProfileCli(argv.slice(1), { home: selection.home });
   } else if (argv[0] === 'distro') {
-    activate(selectHome(argv.slice(1), process.env, { stopAtPositional: false }));
-    await runDistroCli(argv.slice(1));
+    const selection = selectHome(argv.slice(1), env, { stopAtPositional: false });
+    announce(selection);
+    await runDistroCli(argv.slice(1), { home: selection.home });
   } else {
     const listProfiles = argv.includes('--list-profiles');
     const listInstances = argv.includes('--list-instances');
     if (listProfiles || listInstances) {
       let selection;
       try {
-        selection = selectHome(argv);
+        selection = selectHome(argv, env);
       } catch {
         process.exit(0);
       }
-      const names = listProfiles ? availableProfiles(selection.home) : Object.keys(readRegistry().instances).sort();
+      const names = listProfiles ? availableProfiles(selection.home) : Object.keys(readRegistry(env).instances).sort();
       if (names.length > 0) process.stdout.write(`${names.join('\n')}\n`);
       process.exit(0);
     }
     const invocation = parseArgs(argv, VERSION);
-    let active = selectHome(argv);
+    let active = selectHome(argv, env);
     if (invocation.home !== undefined || invocation.instance !== undefined) {
-      active = selectHome(invocation.home !== undefined ? ['--home', invocation.home] : ['--instance', invocation.instance]);
+      active = selectHome(invocation.home !== undefined ? ['--home', invocation.home] : ['--instance', invocation.instance], env);
     }
-    activate(active);
+    announce(active);
     if (invocation.profile === undefined) {
       if (active.profile !== undefined) invocation.profile = active.profile;
       else {
@@ -78,12 +122,33 @@ try {
         throw new Error(`nanodsh: no profile selected and ${active.home} registers none; profiles: ${available.length === 0 ? '(none)' : available.join(', ')}`);
       }
     }
-    if (invocation.dump === 'config') dumpConfig(invocation);
-    else if (invocation.dump === 'default') dumpDefaultConfig(invocation);
-    else if (invocation.dump === 'schema') await dumpConfigSchema(invocation);
-    else await runProfile(invocation);
+    if (invocation.dump !== undefined) await dump(invocation, active.home);
+    else {
+      const session = await boot({
+        home: active.home,
+        profile: invocation.profile,
+        fromDefaultProfile: invocation.fromDefaultProfile,
+        patches: invocation.patches,
+        args: invocation.args,
+        env,
+        warn,
+      });
+      for (const notice of session.notices) warn(notice);
+      handleSignals(session);
+      await session.ready;
+      process.exit(await session.exited);
+    }
   }
 } catch (error) {
+  if (error.startupFailure !== undefined) {
+    warn(error.message);
+    if (error.startupFailure.written) warn(`\nFull diagnostics: ${error.startupFailure.file}\n`);
+    else {
+      for (const line of error.startupFailure.warnings) warn(`\n${line}\n`);
+      warn(`Full diagnostics:\n${error.startupFailure.report}`);
+    }
+    process.exit(1);
+  }
   process.stderr.write(`${error.message ?? error}\n`);
   process.exit(1);
 }

@@ -11,21 +11,21 @@ const FALLBACKS = new Map([
 const loaded = new Map();
 
 /** The instance's copy of a launcher dependency, so launcher and plugins share one module state. */
-export async function loadInstanceModule(home, name) {
+export async function loadInstanceModule(home, name, { warn } = {}) {
   const key = `${home}\u0000${name}`;
   const cached = loaded.get(key);
   if (cached !== undefined) return cached;
-  const module = await resolveInstanceModule(home, name);
+  const module = await resolveInstanceModule(home, name, warn);
   loaded.set(key, module);
   return module;
 }
 
 /** The app-boot module the instance provides, loaded once per home. */
-export function loadAppBoot(home) {
-  return loadInstanceModule(home, '@deepseek-ai/dsh-app-boot');
+export function loadAppBoot(home, options) {
+  return loadInstanceModule(home, '@deepseek-ai/dsh-app-boot', options);
 }
 
-async function resolveInstanceModule(home, name) {
+async function resolveInstanceModule(home, name, warn) {
   const fallback = FALLBACKS.get(name);
   if (fallback === undefined) throw new Error(`nanodsh: no launcher fallback for ${name}`);
   try {
@@ -33,7 +33,7 @@ async function resolveInstanceModule(home, name) {
     return await import(pathToFileURL(require.resolve(name)).href);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`nanodsh: ${home} does not provide ${name} (${reason}); using the launcher copy, which can split module state\n`);
+    warn?.(`nanodsh: ${home} does not provide ${name} (${reason}); using the launcher copy, which can split module state\n`);
     return fallback;
   }
 }

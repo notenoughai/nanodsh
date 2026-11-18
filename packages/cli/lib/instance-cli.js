@@ -1,7 +1,15 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { addDistro, expandHome, instanceHome, namesSharingHome, readRegistry, updateRegistry } from '@nanodsh/core';
+import {
+  createInstance,
+  instanceHome,
+  readRegistry,
+  defaultInstance,
+  listInstances,
+  removeInstance,
+  renameInstance,
+  setDefaultInstance,
+  setInstance,
+  showInstance,
+} from '@nanodsh/core';
 
 const HELP = `Usage: nanodsh instance <command> [options]
 
@@ -18,53 +26,6 @@ Commands:
 The registry lives in ${'${XDG_CONFIG_HOME:-~/.config}'}/nanodsh/instances.json.
 `;
 
-function dataHome(name) {
-  const base = process.env.XDG_DATA_HOME !== undefined && process.env.XDG_DATA_HOME.trim() !== ''
-    ? process.env.XDG_DATA_HOME
-    : join(homedir(), '.local', 'share');
-  return join(base, 'nanodsh', 'instances', name);
-}
-
-function checkHome(home) {
-  if (existsSync(home) && !statSync(home).isDirectory()) throw new Error(`nanodsh: ${home} is not a directory`);
-  return home;
-}
-
-function checkName(name) {
-  if (typeof name !== 'string' || name === '') throw new Error('nanodsh: an instance name is required');
-  if (name.includes('/') || /\s/.test(name) || name === '.' || name === '..' || name.startsWith('-')) {
-    throw new Error(`nanodsh: ${JSON.stringify(name)} is not a valid instance name`);
-  }
-}
-
-function selectionOf(home) {
-  const file = join(home, 'distro.json');
-  if (!existsSync(file)) return undefined;
-  try {
-    return JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    return undefined;
-  }
-}
-
-function describe(registry, name) {
-  const entry = registry.instances[name];
-  const home = expandHome(entry.home);
-  const selection = selectionOf(home);
-  const shared = namesSharingHome(registry, home).filter((other) => other !== name);
-  return {
-    name,
-    home,
-    exists: existsSync(home),
-    distro: selection?.distro,
-    version: selection?.version,
-    api: selection?.api,
-    profile: entry.profile,
-    default: registry.default === name,
-    sharedWith: shared,
-  };
-}
-
 function formatList(rows) {
   const header = ['NAME', 'HOME', 'DISTRO', 'PROFILE', 'STATE'];
   const cells = rows.map((row) => [
@@ -77,6 +38,19 @@ function formatList(rows) {
   const widths = header.map((title, index) => Math.max(title.length, ...cells.map((cell) => cell[index].length)));
   const line = (values) => values.map((value, index) => value.padEnd(widths[index])).join('  ').trimEnd();
   return `${[line(header), ...cells.map(line)].join('\n')}\n`;
+}
+
+function formatShow(row) {
+  const lines = [
+    `name      ${row.name}`,
+    `home      ${row.home}`,
+    `state     ${row.exists ? 'ok' : 'missing'}`,
+    `distro    ${row.distro === undefined ? '(none)' : `${row.distro}@${row.version} (api ${row.api})`}`,
+    `profile   ${row.profile ?? '(none)'}`,
+    `default   ${row.default ? 'yes' : 'no'}`,
+  ];
+  if (row.sharedWith.length > 0) lines.push(`shared    with ${row.sharedWith.join(', ')}`);
+  return `${lines.join('\n')}\n`;
 }
 
 const VALUE_OPTIONS = new Set(['--home', '--distro', '--profile']);
@@ -104,7 +78,7 @@ function parseInstanceArguments(argv) {
   return { positionals, options, flags };
 }
 
-export async function runInstanceCli(argv) {
+export async function runInstanceCli(argv, { env = process.env } = {}) {
   const [command, ...rest] = argv;
   if (command === undefined || command === '-h' || command === '--help') {
     process.stdout.write(HELP);
@@ -112,136 +86,68 @@ export async function runInstanceCli(argv) {
   }
   const { positionals, options, flags } = parseInstanceArguments(rest);
   if (command === 'list') {
-    const registry = readRegistry();
-    const rows = Object.keys(registry.instances).map((name) => describe(registry, name));
+    const rows = listInstances({ env });
     if (flags.has('--json')) process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
     else process.stdout.write(formatList(rows));
     return;
   }
   if (command === 'create' || command === 'add') {
     const name = positionals[0];
-    checkName(name);
-    if (readRegistry().instances[name] !== undefined) throw new Error(`nanodsh: instance ${JSON.stringify(name)} is already registered`);
-    const home = checkHome(options['--home'] === undefined ? resolve(dataHome(name)) : resolve(expandHome(options['--home'])));
-    const profile = options['--profile'];
-    const distroSpec = options['--distro'];
-    let distro;
-    mkdirSync(home, { recursive: true });
-    if (distroSpec !== undefined) {
-      const added = await addDistro(distroSpec, home);
-      distro = `${added.name}@${added.version}`;
-    }
-    updateRegistry((registry) => {
-      if (registry.instances[name] !== undefined) throw new Error(`nanodsh: instance ${JSON.stringify(name)} is already registered`);
-      registry.instances[name] = distro === undefined ? { home } : { home, distro };
-      if (profile !== undefined) registry.instances[name].profile = profile;
-      if (registry.default === undefined) registry.default = name;
+    const created = await createInstance({
+      name,
+      home: options['--home'],
+      profile: options['--profile'],
+      distro: options['--distro'],
+      env,
     });
-    process.stdout.write(`nanodsh: instance ${name} created at ${home}\n`);
+    process.stdout.write(`nanodsh: instance ${created.name} created at ${created.home}\n`);
     return;
   }
   if (command === 'set') {
-    const name = positionals[0];
-    checkName(name);
-    const current = readRegistry();
-    if (current.instances[name] === undefined) throw new Error(`nanodsh: instance ${JSON.stringify(name)} is not registered`);
-    const distroSpec = options['--distro'];
-    let distro;
-    if (distroSpec !== undefined) {
-      const added = await addDistro(distroSpec, expandHome(current.instances[name].home));
-      distro = `${added.name}@${added.version}`;
-    }
-    updateRegistry((registry) => {
-      if (registry.instances[name] === undefined) throw new Error(`nanodsh: instance ${JSON.stringify(name)} is not registered`);
-      if (options['--home'] !== undefined) registry.instances[name].home = checkHome(resolve(expandHome(options['--home'])));
-      if (distro !== undefined) registry.instances[name].distro = distro;
-      if (options['--profile'] !== undefined) registry.instances[name].profile = options['--profile'];
+    const updated = await setInstance({
+      name: positionals[0],
+      home: options['--home'],
+      profile: options['--profile'],
+      distro: options['--distro'],
+      env,
     });
-    process.stdout.write(`nanodsh: instance ${name} updated\n`);
+    process.stdout.write(`nanodsh: instance ${updated.name} updated\n`);
     return;
   }
   if (command === 'show') {
-    const name = positionals[0];
-    checkName(name);
-    const registry = readRegistry();
-    if (registry.instances[name] === undefined) throw new Error(`nanodsh: instance ${JSON.stringify(name)} is not registered`);
-    const row = describe(registry, name);
-    const lines = [
-      `name      ${row.name}`,
-      `home      ${row.home}`,
-      `state     ${row.exists ? 'ok' : 'missing'}`,
-      `distro    ${row.distro === undefined ? '(none)' : `${row.distro}@${row.version} (api ${row.api})`}`,
-      `profile   ${row.profile ?? '(none)'}`,
-      `default   ${row.default ? 'yes' : 'no'}`,
-    ];
-    if (row.sharedWith.length > 0) lines.push(`shared    with ${row.sharedWith.join(', ')}`);
-    process.stdout.write(`${lines.join('\n')}\n`);
+    process.stdout.write(formatShow(showInstance({ name: positionals[0], env })));
     return;
   }
   if (command === 'default') {
     const name = positionals[0];
     if (name === undefined) {
-      process.stdout.write(`${readRegistry().default ?? '(none)'}\n`);
+      process.stdout.write(`${defaultInstance({ env }) ?? '(none)'}\n`);
       return;
     }
-    checkName(name);
-    updateRegistry((registry) => {
-      if (registry.instances[name] === undefined) throw new Error(`nanodsh: instance ${JSON.stringify(name)} is not registered`);
-      registry.default = name;
-    });
+    setDefaultInstance({ name, env });
     process.stdout.write(`nanodsh: default instance is ${name}\n`);
     return;
   }
   if (command === 'remove') {
     const name = positionals[0];
-    checkName(name);
-    const current = readRegistry();
-    if (current.instances[name] === undefined) throw new Error(`nanodsh: instance ${JSON.stringify(name)} is not registered`);
     const purge = flags.has('--purge');
-    if (purge && !flags.has('--yes')) throw new Error(`nanodsh: --purge also needs --yes; it deletes ${instanceHome(current, name)}`);
-    updateRegistry((registry) => {
-      if (registry.instances[name] === undefined) throw new Error(`nanodsh: instance ${JSON.stringify(name)} is not registered`);
-      if (purge) {
-        const home = instanceHome(registry, name);
-        const others = namesSharingHome(registry, home).filter((other) => other !== name);
-        if (others.length > 0) {
-          throw new Error(`nanodsh: ${home} is shared with ${others.join(', ')}; remove ${others.length === 1 ? 'that instance' : 'those instances'} first or drop --purge`);
-        }
-        if (!existsSync(home)) {
-          process.stderr.write(`nanodsh: ${home} does not exist; removing the registration only\n`);
-        } else {
-          const resolved = realpathSync(home);
-          if (resolved === '/' || resolved === realpathSync(homedir())) {
-            throw new Error(`nanodsh: refusing to delete ${resolved}`);
-          }
-          if (lstatSync(home).isSymbolicLink()) {
-            rmSync(home, { force: true });
-            process.stderr.write(`nanodsh: ${home} was a symbolic link; removed the link and left ${resolved} in place\n`);
-          } else {
-            rmSync(resolved, { recursive: true, force: true });
-          }
-        }
+    if (purge) {
+      const current = readRegistry(env);
+      if (current.instances[name] === undefined) {
+        throw new Error(`nanodsh: instance ${JSON.stringify(name)} is not registered`);
       }
-      delete registry.instances[name];
-      if (registry.default === name) {
-        const remaining = Object.keys(registry.instances);
-        registry.default = remaining.length === 0 ? undefined : remaining[0];
+      if (!flags.has('--yes')) {
+        throw new Error(`nanodsh: --purge also needs --yes; it deletes ${instanceHome(current, name)}`);
       }
-    });
-    process.stdout.write(`nanodsh: instance ${name} removed${purge ? ' with its directory' : ''}\n`);
+    }
+    const removed = removeInstance({ name, purge, env });
+    for (const notice of removed.notices) process.stderr.write(`${notice}\n`);
+    process.stdout.write(`nanodsh: instance ${removed.name} removed${removed.purged ? ' with its directory' : ''}\n`);
     return;
   }
   if (command === 'rename') {
     const [from, to] = positionals;
-    checkName(from);
-    checkName(to);
-    updateRegistry((registry) => {
-      if (registry.instances[from] === undefined) throw new Error(`nanodsh: instance ${JSON.stringify(from)} is not registered`);
-      if (registry.instances[to] !== undefined) throw new Error(`nanodsh: instance ${JSON.stringify(to)} is already registered`);
-      registry.instances[to] = registry.instances[from];
-      delete registry.instances[from];
-      if (registry.default === from) registry.default = to;
-    });
+    renameInstance({ from, to, env });
     process.stdout.write(`nanodsh: instance ${from} renamed to ${to}\n`);
     return;
   }

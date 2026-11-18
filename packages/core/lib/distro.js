@@ -81,13 +81,13 @@ function registrySpec(spec) {
   return !/^(?:file:|link:|workspace:|https?:|git\+|git:|github:|npm:)/.test(spec);
 }
 
-async function allowBuildArgs(spec) {
+async function allowBuildArgs(spec, warn) {
   const local = localManifest(spec);
   if (local !== undefined) return allowBuildList(local);
   if (!registrySpec(spec)) return [];
   const manifest = registryManifest(spec);
   if (manifest === undefined) {
-    process.stderr.write(`${PREFIX}: could not read ${spec} from the registry; installing without its allowBuilds\n`);
+    warn?.(`${PREFIX}: could not read ${spec} from the registry; installing without its allowBuilds\n`);
     return [];
   }
   return allowBuildList(manifest);
@@ -149,21 +149,21 @@ function writeSelection(home, name, manifest, api) {
   renameSync(staging, file);
 }
 
-export async function addDistro(spec, home) {
+export async function addDistro(spec, home, { warn } = {}) {
   if (typeof spec !== 'string' || spec === '') throw new Error(`${PREFIX}: distro add needs a package, for example "@nanodsh/distro-standard@0.0.1"`);
   prepareHome(home);
   if (existsSync(selectionFile(home))) {
     const selection = readJson(selectionFile(home));
     throw new Error(`${PREFIX}: ${home} already selects ${selection.distro}@${selection.version}; run "nanodsh distro switch <package>" to replace it`);
   }
-  await runPnpm(['add', ...(await allowBuildArgs(spec)), spec], home);
+  await runPnpm(['add', ...(await allowBuildArgs(spec, warn)), spec], home);
   const { name, manifest } = findDistro(home);
   const api = checkApi(name, manifest);
   writeSelection(home, name, manifest, api);
   return { name, version: manifest.version, api };
 }
 
-export async function switchDistro(spec, home) {
+export async function switchDistro(spec, home, { warn } = {}) {
   if (typeof spec !== 'string' || spec === '') throw new Error(`${PREFIX}: distro switch needs a package`);
   if (!existsSync(manifestFile(home))) {
     throw new Error(`${PREFIX}: ${home} holds no instance; run "nanodsh distro add ${spec}" to create one`);
@@ -175,7 +175,7 @@ export async function switchDistro(spec, home) {
     writeJson(join(staging, 'package.json'), { name: 'dsh-instance', private: true, type: 'module', dependencies: {} });
     writeFileSync(join(staging, 'pnpm-workspace.yaml'), WORKSPACE);
     mkdirSync(join(staging, 'profiles'), { recursive: true });
-    await runPnpm(['add', ...(await allowBuildArgs(spec)), spec], staging);
+    await runPnpm(['add', ...(await allowBuildArgs(spec, warn)), spec], staging);
     const { name, manifest } = findDistro(staging);
     const api = checkApi(name, manifest);
     const selection = { distro: name, version: manifest.version, api };

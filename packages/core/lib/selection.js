@@ -35,7 +35,7 @@ export function withoutSelectionFlags(argv) {
   return rest;
 }
 
-export function selectHome(argv, env = process.env, options = {}) {
+export function selectHome(argv, env, options = {}) {
   const flags = selectionFlags(argv, options);
   if (flags.home !== undefined && flags.instance !== undefined) {
     throw new Error('nanodsh: --instance and --home are mutually exclusive');
@@ -67,7 +67,7 @@ export function selectHome(argv, env = process.env, options = {}) {
   );
 }
 
-export function overriddenNotice(selection, env = process.env) {
+export function overriddenNotice(selection, env) {
   if (selection.source !== 'flag:--instance' && selection.source !== 'flag:--home') return '';
   if (env.DSH_HOME === undefined || env.DSH_HOME.trim() === '') return '';
   if (expandHome(env.DSH_HOME) === expandHome(selection.home)) return '';

@@ -5,13 +5,8 @@ import { inspect } from 'node:util';
 
 const CREDENTIAL_WARNING = 'WARNING: Raw diagnostics may contain configuration or credential values from plugin errors. Review before sharing.\n\n';
 
-function writeStderr(text) {
-  return new Promise((resolve, reject) => {
-    process.stderr.write(text, (problem) => (problem === null || problem === undefined ? resolve() : reject(problem)));
-  });
-}
-
-export async function reportStartupFailure(error, { home, version, profile }, write = writeStderr) {
+/** Writes the startup report to the home and returns what a caller should say. */
+export async function reportStartupFailure(error, { home, version, profile }) {
   const timestamp = new Date().toISOString();
   const report = CREDENTIAL_WARNING + inspect({
     timestamp,
@@ -31,16 +26,19 @@ export async function reportStartupFailure(error, { home, version, profile }, wr
     colors: false,
   }) + '\n';
 
-  await write(`${error.message}\n`);
-
   const directory = join(home, 'logs');
   const file = join(directory, `startup-${timestamp.replaceAll(':', '-')}-${randomUUID()}.log`);
+  const message = `${error.message}\n`;
   try {
     await mkdir(directory, { recursive: true, mode: 0o700 });
     await writeFile(file, report, { flag: 'wx', mode: 0o600 });
   } catch (problem) {
-    await write(`\nnanodsh: warning: could not write startup diagnostics: ${String(problem)}\nFull diagnostics:\n${report}`);
-    return;
+    return {
+      message,
+      report,
+      warnings: [`nanodsh: warning: could not write startup diagnostics: ${String(problem)}`],
+      written: false,
+    };
   }
-  await write(`\nFull diagnostics: ${file}\n`);
+  return { message, report, file, warnings: [], written: true };
 }

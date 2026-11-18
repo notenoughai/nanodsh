@@ -1,4 +1,3 @@
-import { resolveDshHome } from '@deepseek-ai/dsh-home-paths';
 import { addDistro, showDistro, switchDistro, withoutSelectionFlags } from '@nanodsh/core';
 
 const HELP = `Usage: nanodsh distro <command> [options]
@@ -20,15 +19,14 @@ hosts     ${selection.declaredHosts} declared, ${selection.installedHosts} insta
 `;
 }
 
-export async function runDistroCli(argv) {
+export async function runDistroCli(argv, { home }) {
   const [command, ...rest] = argv;
-  const home = resolveDshHome();
   if (command === undefined || command === '-h' || command === '--help') {
     process.stdout.write(HELP);
     return;
   }
   if (command === 'add') {
-    const added = await addDistro(withoutSelectionFlags(rest)[0], home);
+    const added = await addDistro(withoutSelectionFlags(rest)[0], home, { warn: (line) => process.stderr.write(line) });
     process.stdout.write(`nanodsh: distro ${added.name}@${added.version} (api ${added.api}) installed in ${home}\n`);
     return;
   }
@@ -37,7 +35,7 @@ export async function runDistroCli(argv) {
     return;
   }
   if (command === 'switch') {
-    const switched = await switchDistro(withoutSelectionFlags(rest)[0], home);
+    const switched = await switchDistro(withoutSelectionFlags(rest)[0], home, { warn: (line) => process.stderr.write(line) });
     process.stdout.write(`nanodsh: distro ${switched.name}@${switched.version} (api ${switched.api}) is now selected in ${home}\n`);
     return;
   }

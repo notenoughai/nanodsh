@@ -1,4 +1,4 @@
-import { initProfile, loadProfile, reportSkippedBundles, resolveProfileDir } from '@deepseek-ai/dsh-app-boot';
+import { initProfile, loadProfile, resolveProfileDir } from '@deepseek-ai/dsh-app-boot';
 import { loadAppBoot, loadInstanceModule } from './instance-modules.js';
 import { PROFILE_TEMPLATES } from '@deepseek-ai/dsh-official-bundles';
 import { provideCmdline } from '@deepseek-ai/dsh-cmdline';
@@ -16,7 +16,6 @@ export const INSTALL_ANCHOR = fileURLToPath(new URL('../package.json', import.me
 export const ROOT_FILENAME = 'cordis.yml';
 const ROOT_CONFIG = '[]\n';
 const FIBER_ACTIVE = 2;
-const SHUTDOWN_BUDGET_MS = 5000;
 
 function createReadiness() {
   let ready = false;
@@ -88,25 +87,27 @@ export function initializeProfileFromDefault(name, templateName, home = resolveD
   try {
     rmSync(staging, { recursive: true, force: true });
   } catch (error) {
-    process.stderr.write(`${NAME}: replaced profile ${JSON.stringify(name)} but could not remove ${staging}: ${String(error)}\n`);
+    return [`${NAME}: replaced profile ${JSON.stringify(name)} but could not remove ${staging}: ${String(error)}\n`];
   }
+  return [];
 }
 
-export function loadLaunchProfile(name, home = resolveDshHome(), { fromDefaultProfile, userLayer = true, installAnchor = INSTALL_ANCHOR, appBoot = { loadProfile, reportSkippedBundles } } = {}) {
-  if (fromDefaultProfile !== undefined) initializeProfileFromDefault(name, fromDefaultProfile, home);
+export function loadLaunchProfile(name, home = resolveDshHome(), { fromDefaultProfile, userLayer = true, installAnchor = INSTALL_ANCHOR, appBoot = { loadProfile } } = {}) {
+  const notices = fromDefaultProfile === undefined ? [] : initializeProfileFromDefault(name, fromDefaultProfile, home);
   const profile = appBoot.loadProfile(NAME, name, installAnchor, home, { userLayer });
-
-  appBoot.reportSkippedBundles(NAME, profile);
-  return profile;
+  for (const { packageName, reason } of profile.skippedBundles ?? []) {
+    notices.push(`${NAME}: skipping profile bundle ${JSON.stringify(packageName)}: ${reason}\n`);
+  }
+  return { ...profile, notices };
 }
 
-export async function runProfile({ profile: name, fromDefaultProfile, patches, args }) {
-  const home = resolveDshHome();
-  const appBoot = await loadAppBoot(home);
+/** Boots a profile and returns the context; signals, printing and exit codes stay with the caller. */
+export async function boot({ home = resolveDshHome(), profile: name, fromDefaultProfile, patches = [], args = [], env = process.env, warn } = {}) {
+  const appBoot = await loadAppBoot(home, { warn });
   const environment = Object.freeze(appBoot.loadLayeredEnv(NAME));
-  const httpProxy = await loadInstanceModule(home, '@deepseek-ai/dsh-http-proxy');
+  const httpProxy = await loadInstanceModule(home, '@deepseek-ai/dsh-http-proxy', { warn });
   const disposeProxy = await httpProxy.installProxyFromEnvironment(environment, (message) => {
-    process.stderr.write(`${NAME}: ${message}\n`);
+    warn?.(`${NAME}: ${message}\n`);
   });
   const instance = resolveInstance(home);
   const installAnchor = instance?.installAnchor ?? INSTALL_ANCHOR;
@@ -124,19 +125,33 @@ export async function runProfile({ profile: name, fromDefaultProfile, patches, a
     patchPath: profile.patchPath,
     installAnchor,
     startedBundles: profile.layers.map((layer) => layer.packageName),
-    cwd: process.cwd(),
+    cwd: env.PWD ?? process.cwd(),
     home,
     overlays,
-    telemetryDisabledEnv: process.env.DSH_TELEMETRY_DISABLED,
+    telemetryDisabledEnv: env.DSH_TELEMETRY_DISABLED,
   };
 
   let ctx;
-  let interrupted = false;
   let stopping;
+  let exitCode;
+  let settleReady;
+  let settleExit;
+  const ready = new Promise((resolveReady) => {
+    settleReady = resolveReady;
+  });
+  const exited = new Promise((resolveExit) => {
+    settleExit = resolveExit;
+  });
+  const requestExit = (code) => {
+    if (exitCode === undefined) {
+      exitCode = code;
+      settleExit(code);
+    }
+  };
   const stop = (code) => {
     if (stopping !== undefined) return stopping;
+    requestExit(code);
     stopping = (async () => {
-      const budget = setTimeout(() => process.exit(code), SHUTDOWN_BUDGET_MS);
       let failure;
       try {
         await ctx?.fiber.dispose();
@@ -147,22 +162,13 @@ export async function runProfile({ profile: name, fromDefaultProfile, patches, a
         await disposeProxy();
       } catch (problem) {
         failure ??= problem;
-      } finally {
-        clearTimeout(budget);
       }
-      if (failure !== undefined) process.stderr.write(`${NAME}: shutdown failed: ${String(failure)}\n`);
-      process.exit(code);
+      settleReady();
+      if (failure !== undefined) warn?.(`${NAME}: shutdown failed: ${String(failure)}\n`);
+      return code;
     })();
     return stopping;
   };
-
-  const interrupt = (code) => {
-    interrupted = true;
-    if (stopping !== undefined) process.exit(code);
-    void stop(code);
-  };
-  process.on('SIGINT', () => interrupt(130));
-  process.on('SIGTERM', () => interrupt(0));
 
   try {
     ctx = await appBoot.boot(
@@ -178,17 +184,18 @@ export async function runProfile({ profile: name, fromDefaultProfile, patches, a
     );
   } catch (error) {
     if (error instanceof appBoot.StartupError) {
-      await reportStartupFailure(error, { home, version: VERSION, profile: name });
-      process.exit(1);
+      const failure = await reportStartupFailure(error, { home, version: VERSION, profile: name });
+      throw Object.assign(new Error(failure.message, { cause: error }), { startupFailure: failure });
     }
+    await stop(1);
     throw error;
   }
 
-  if (!interrupted && ctx.fiber.state === FIBER_ACTIVE && ctx.get('loader') !== undefined) {
+  if (ctx.fiber.state === FIBER_ACTIVE && ctx.get('loader') !== undefined) {
     readiness.commit();
   }
-  if (ctx.fiber.state !== FIBER_ACTIVE) return;
-  await new Promise((done) => {
-    ctx.on('dispose', () => done());
-  });
+  settleReady();
+  if (ctx.fiber.state !== FIBER_ACTIVE) requestExit(0);
+  return { ctx, stop, ready, exited, notices: profile.notices };
+
 }
