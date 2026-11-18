@@ -1,0 +1,40 @@
+{
+  "name": "@nanodsh/cli",
+  "version": "0.0.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "description": "Boot a dsh profile, and nothing else.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/notenoughai/nanodsh.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/notenoughai/nanodsh#readme",
+  "bugs": {
+    "url": "https://github.com/notenoughai/nanodsh/issues"
+  },
+  "type": "module",
+  "bin": {
+    "nanodsh": "bin/nanodsh.js"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-official-bundles": "0.2.2-rc.3",
+    "@nanodsh/core": "workspace:*",
+    "commander": "^15.1.0"
+  },
+  "scripts": {
+    "check": "for file in bin/*.js lib/*.js; do node --check \"$file\" || exit 1; done",
+    "test": "node --test test/*.test.mjs"
+  },
+  "license": "MIT"
+}

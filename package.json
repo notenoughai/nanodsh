@@ -1,9 +1,7 @@
 {
-  "name": "@nanodsh/cli",
+  "name": "nanodsh",
   "version": "0.0.2",
-  "publishConfig": {
-    "access": "public"
-  },
+  "private": true,
   "packageManager": "pnpm@12.18.0",
   "description": "Boot a dsh profile, and nothing else.",
   "repository": {
@@ -15,31 +13,15 @@
     "url": "https://github.com/notenoughai/nanodsh/issues"
   },
   "type": "module",
-  "bin": {
-    "nanodsh": "bin/nanodsh.js"
-  },
-  "files": [
-    "bin",
-    "lib"
-  ],
   "engines": {
     "node": ">=20"
   },
-  "dependencies": {
-    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-cmdline": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-http-proxy": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-launch-environment": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-official-bundles": "0.2.2-rc.3",
-    "commander": "^15.1.0"
-  },
   "scripts": {
     "bench": "node scripts/bench.mjs",
-    "check": "for file in bin/*.js lib/*.js scripts/*.mjs test/*.mjs; do node --check \"$file\" || exit 1; done",
+    "check": "for file in scripts/*.mjs test/*.mjs; do node --check \"$file\" || exit 1; done && pnpm -r run check",
     "dens": "node scripts/desens.mjs --staged",
     "prepare": "git config core.hooksPath .githooks || true",
-    "test": "node --test"
+    "test": "pnpm -r run test && node --test test/*.test.mjs"
   },
   "license": "MIT"
 }

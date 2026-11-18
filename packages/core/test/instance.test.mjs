@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { resolveInstance } from '../lib/instance.js';
+import { resolveInstance } from '@nanodsh/core';
 
 function instance({ runtime, base } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'nanodsh-instance-'));

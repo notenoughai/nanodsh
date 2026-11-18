@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths';
 import { initProfile } from '@deepseek-ai/dsh-app-boot';
 import { PROFILE_TEMPLATES } from '@deepseek-ai/dsh-official-bundles';
-import { resolveInstance } from './instance.js';
-import { isProfileName } from './names.js';
+import { isProfileName, resolveInstance } from '@nanodsh/core';
 
 const RESERVED = ['plugin', 'distro', 'instance', 'completion'];
 

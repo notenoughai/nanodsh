@@ -1,6 +1,5 @@
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths';
-import { withoutSelectionFlags } from './selection.js';
-import { addDistro, showDistro, switchDistro } from './distro.js';
+import { addDistro, showDistro, switchDistro, withoutSelectionFlags } from '@nanodsh/core';
 
 const HELP = `Usage: nanodsh distro <command> [options]
 

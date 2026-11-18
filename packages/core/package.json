@@ -1,0 +1,39 @@
+{
+  "name": "@nanodsh/core",
+  "version": "0.0.2",
+  "description": "Profiles, instances and distros for the dsh launcher, without a command line.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/notenoughai/nanodsh.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/notenoughai/nanodsh#readme",
+  "bugs": {
+    "url": "https://github.com/notenoughai/nanodsh/issues"
+  },
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "lib"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-cmdline": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-http-proxy": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-launch-environment": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-official-bundles": "0.2.2-rc.3"
+  },
+  "scripts": {
+    "check": "for file in index.js lib/*.js; do node --check \"$file\" || exit 1; done",
+    "test": "node --test test/*.test.mjs"
+  },
+  "license": "MIT"
+}

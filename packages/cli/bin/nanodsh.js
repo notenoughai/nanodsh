@@ -7,11 +7,7 @@ import { runInstanceCli } from '../lib/instance-cli.js';
 import { runPluginCli } from '../lib/plugin-cli.js';
 import { runProfileCli } from '../lib/profile-cli.js';
 import { renderCompletion, SHELLS } from '../lib/completions.js';
-import { readRegistry } from '../lib/registry.js';
-import { overriddenNotice, selectHome } from '../lib/selection.js';
-import { dumpConfig, dumpConfigSchema, dumpDefaultConfig } from '../lib/dump-config.js';
-import { runProfile } from '../lib/profile.js';
-import { VERSION } from '../lib/version.js';
+import { VERSION, dumpConfig, dumpConfigSchema, dumpDefaultConfig, overriddenNotice, readRegistry, runProfile, selectHome } from '@nanodsh/core';
 
 const argv = process.argv.slice(2);
 

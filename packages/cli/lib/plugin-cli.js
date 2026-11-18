@@ -2,10 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths';
 import { initProfile, readProfilePlugins, reconcileProfilePlugins } from '@deepseek-ai/dsh-app-boot';
-import { runPnpm } from './distro.js';
-import { isPlainVersion, resolveInstance } from './instance.js';
-import { isProfileName } from './names.js';
-import { INSTALL_ANCHOR, NAME } from './profile.js';
+import { INSTALL_ANCHOR, NAME, isPlainVersion, isProfileName, resolveInstance, runPnpm } from '@nanodsh/core';
 
 const HELP = `Usage: nanodsh plugin --profile <name> <pnpm arguments...>
 

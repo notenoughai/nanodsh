@@ -1,8 +1,7 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { addDistro } from './distro.js';
-import { expandHome, instanceHome, namesSharingHome, readRegistry, updateRegistry } from './registry.js';
+import { addDistro, expandHome, instanceHome, namesSharingHome, readRegistry, updateRegistry } from '@nanodsh/core';
 
 const HELP = `Usage: nanodsh instance <command> [options]
 

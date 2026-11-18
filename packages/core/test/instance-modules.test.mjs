@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import * as launcherAppBoot from '@deepseek-ai/dsh-app-boot';
 import * as launcherHttpProxy from '@deepseek-ai/dsh-http-proxy';
-import { loadAppBoot, loadInstanceModule } from '../lib/instance-modules.js';
+import { loadAppBoot, loadInstanceModule } from '@nanodsh/core';
 
 function home(options = {}) {
   const root = mkdtempSync(join(tmpdir(), 'nanodsh-app-boot-'));
