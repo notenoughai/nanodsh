@@ -1,6 +1,9 @@
 {
   "name": "@nanodsh/core",
   "version": "0.0.2",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Profiles, instances and distros for the dsh launcher, without a command line.",
   "repository": {
     "type": "git",

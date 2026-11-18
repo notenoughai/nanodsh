@@ -40,16 +40,26 @@ jobs:
       - name: pack smoke
         run: |
           mkdir -p /tmp/pack
-          pnpm pack --pack-destination /tmp/pack
-          tarball=$(ls /tmp/pack/*.tgz)
-          if tar -tzf "$tarball" | grep -qE '^package/(test|scripts)/'; then
-            echo "the tarball must not carry tests or scripts" >&2
-            exit 1
-          fi
-          tar -xzOf "$tarball" package/package.json > /tmp/manifest.json
-          node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync("/tmp/manifest.json","utf8"));if(m.publishConfig?.access!=="public"){throw new Error("a scoped package must publish as public")}if(m.version!==JSON.parse(fs.readFileSync("package.json","utf8")).version){throw new Error("the tarball version differs from the repository")}'
+          pnpm --filter @nanodsh/core pack --pack-destination /tmp/pack
+          pnpm --filter @nanodsh/cli pack --pack-destination /tmp/pack
+          core=$(ls /tmp/pack/nanodsh-core-*.tgz)
+          cli=$(ls /tmp/pack/nanodsh-cli-*.tgz)
+          for tarball in "$core" "$cli"; do
+            if tar -tzf "$tarball" | grep -qE '^package/(test|scripts)/'; then
+              echo "the tarball must not carry tests or scripts: $tarball" >&2
+              exit 1
+            fi
+            if ! tar -tzf "$tarball" | grep -qx 'package/README.md'; then
+              echo "the tarball must carry a README: $tarball" >&2
+              exit 1
+            fi
+          done
+          tar -xzOf "$core" package/package.json > /tmp/core-manifest.json
+          tar -xzOf "$cli" package/package.json > /tmp/cli-manifest.json
+          node -e 'const fs=require("fs");for (const [name,file] of [["@nanodsh/core","/tmp/core-manifest.json"],["@nanodsh/cli","/tmp/cli-manifest.json"]]){const m=JSON.parse(fs.readFileSync(file,"utf8"));const source=JSON.parse(fs.readFileSync("packages/"+name.split("/")[1]+"/package.json","utf8"));if(m.name!==name){throw new Error("unexpected package name "+m.name)}if(m.publishConfig?.access!=="public"){throw new Error(name+" must publish as public")}if(m.version!==source.version){throw new Error(name+" tarball version differs from packages/"+name.split("/")[1])}}'
           work=$(mktemp -d)
           cd "$work"
           npm init -y >/dev/null
-          npm install "$tarball" --no-audit --no-fund >/dev/null
+          npm install "$core" "$cli" --no-audit --no-fund >/dev/null
           ./node_modules/.bin/nanodsh --version
+          node --input-type=module -e "import('@nanodsh/core').then((m) => { if (typeof m.selectHome !== 'function') throw new Error('@nanodsh/core does not export selectHome') })"
