@@ -21,7 +21,11 @@
     "check": "for file in scripts/*.mjs test/*.mjs; do node --check \"$file\" || exit 1; done && pnpm -r run check",
     "dens": "node scripts/desens.mjs --staged",
     "prepare": "git config core.hooksPath .githooks || true",
-    "test": "pnpm -r run test && node --test test/*.test.mjs"
+    "test": "pnpm -r run test && node --test test/*.test.mjs",
+    "example": "node examples/embed.mjs"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@nanodsh/core": "workspace:*"
+  }
 }

@@ -164,7 +164,11 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      '@nanodsh/core':
+        specifier: workspace:*
+        version: link:packages/core
 
   packages/cli:
     dependencies:
