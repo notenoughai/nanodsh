@@ -28,9 +28,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-home-paths": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-official-bundles": "0.2.2-rc.3",
     "@nanodsh/core": "workspace:*",
     "commander": "^15.1.0"
   },
