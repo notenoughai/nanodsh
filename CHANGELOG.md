@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The launcher disposes the profile before it exits, so plugin cleanup finishes and the child processes it started do not outlive it.
+
 ## [0.0.3] - 2026-11-18
 
 ### Added
