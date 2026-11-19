@@ -540,3 +540,31 @@ test('a signal waits for the profile disposers before the launcher exits', async
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
   }
 });
+
+test('--dump-config composes with the app-boot the instance provides', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  const pkg = join(home, 'node_modules', '@deepseek-ai', 'dsh-app-boot');
+  mkdirSync(join(home, 'profiles', 'demo'), { recursive: true });
+  mkdirSync(pkg, { recursive: true });
+  writeFileSync(join(home, 'package.json'), JSON.stringify({ name: 'dsh-instance', private: true }));
+  writeFileSync(join(home, 'profiles', 'demo', 'package.json'), JSON.stringify({ name: 'dsh-profile-demo', private: true, dsh: { profile: { bundles: [] } } }));
+  writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-app-boot', version: '9.9.9', type: 'module', exports: { '.': './index.js' } }));
+  writeFileSync(join(pkg, 'index.js'), [
+    "import { join } from 'node:path';",
+    'export const StartupError = class StartupError extends Error {};',
+    'export const PluginPackages = class PluginPackages {};',
+    'export function loadLayeredEnv() { return new Map(); }',
+    "export function loadProfile(binName, name, installAnchor, home) { return { name, dir: join(home, 'profiles', name), patchPath: join(home, 'profiles', name, 'cordis.patch.yml'), layers: [{ packageName: 'instance-bundle', patches: [] }], skippedBundles: [] }; }",
+    'export function loadOptionalPatches() { return undefined; }',
+    'export function loadOverlayPatches() { return []; }',
+    "export function renderConfigDump() { return '# composed by the instance runtime\\n'; }",
+    'export async function generateConfigSchema() { return { "x-cordis": { complete: true, diagnostics: [] } }; }',
+    '',
+  ].join('\n'));
+
+  const result = run(['--profile', 'demo', '--dump-config'], box, { env: { DSH_HOME: home } });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, '# composed by the instance runtime\n');
+  assert.doesNotMatch(result.stderr, /skipping profile bundle/);
+});

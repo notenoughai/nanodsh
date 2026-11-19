@@ -21,7 +21,7 @@ try {
   cpSync(join(fixture, 'bundle'), join(modules, 'example-bundle'), { recursive: true });
   cpSync(join(fixture, 'plugin'), join(modules, 'example-plugin'), { recursive: true });
 
-  const composed = composeConfig({ home: selection.home, profile: profile.name });
+  const composed = await composeConfig({ home: selection.home, profile: profile.name });
   for (const notice of composed.notices) process.stderr.write(notice);
 
   process.stdout.write(`instance  ${selection.name} at ${selection.home}\n`);

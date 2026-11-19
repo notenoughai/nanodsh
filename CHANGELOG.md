@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - The launcher disposes the profile before it exits, so plugin cleanup finishes and the child processes it started do not outlive it.
+- `--dump-config`, `--dump-default-config` and `--dump-config-schema` compose with the runtime the instance provides, so a profile whose bundles are newer than the launcher's own runtime no longer loses them to an incompatible-runtime skip.
 
 ## [0.0.3] - 2026-11-18
 

@@ -50,13 +50,13 @@ function handleSignals(session) {
 
 async function dump(invocation, home) {
   if (invocation.dump === 'config') {
-    const composed = composeConfig({ home, profile: invocation.profile, fromDefaultProfile: invocation.fromDefaultProfile, patches: invocation.patches });
+    const composed = await composeConfig({ home, profile: invocation.profile, fromDefaultProfile: invocation.fromDefaultProfile, patches: invocation.patches });
     for (const notice of composed.notices) warn(notice);
     process.stdout.write(composed.text);
     return;
   }
   if (invocation.dump === 'default') {
-    const composed = composeDefaultConfig({ home, profile: invocation.profile, fromDefaultProfile: invocation.fromDefaultProfile });
+    const composed = await composeDefaultConfig({ home, profile: invocation.profile, fromDefaultProfile: invocation.fromDefaultProfile });
     for (const notice of composed.notices) warn(notice);
     process.stdout.write(composed.text);
     return;
