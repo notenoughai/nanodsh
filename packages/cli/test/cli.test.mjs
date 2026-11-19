@@ -435,3 +435,108 @@ test('listing profiles without an instance stays silent and succeeds', () => {
   assert.equal(result.stdout, '');
   assert.equal(existsSync(join(box.home, '.dsh')), false);
 });
+
+function cleanupProfile() {
+  const home = mkdtempSync(join(tmpdir(), 'nanodsh-cleanup-'));
+  const profile = join(home, 'profiles', 'cleanup');
+  const bundle = join(profile, 'node_modules', 'cleanup-bundle');
+  const plugin = join(profile, 'node_modules', 'cleanup-plugin');
+  mkdirSync(bundle, { recursive: true });
+  mkdirSync(plugin, { recursive: true });
+  writeFileSync(join(home, 'package.json'), JSON.stringify({ name: 'cleanup-instance', private: true }));
+  writeFileSync(join(profile, 'package.json'), JSON.stringify({
+    name: 'cleanup-profile',
+    private: true,
+    dependencies: { 'cleanup-bundle': '*' },
+    dsh: { profile: { bundles: ['cleanup-bundle'] } },
+  }));
+  writeFileSync(join(bundle, 'package.json'), JSON.stringify({
+    name: 'cleanup-bundle', version: '0.0.0', private: true, dsh: { bundle: { patch: './cordis.patch.yml' } },
+  }));
+  writeFileSync(join(bundle, 'cordis.patch.yml'), '- insert:\n    - id: cleanup\n      name: cleanup-plugin\n');
+  writeFileSync(join(plugin, 'package.json'), JSON.stringify({
+    name: 'cleanup-plugin', version: '0.0.0', private: true, type: 'module', exports: './index.js',
+  }));
+  writeFileSync(join(plugin, 'index.js'), [
+    "import { spawn } from 'node:child_process';",
+    "import { writeFileSync } from 'node:fs';",
+    '',
+    "export const name = 'cleanup';",
+    '',
+    'export function apply(ctx) {',
+    "  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });",
+    '  writeFileSync(process.env.CLEANUP_PID, String(child.pid));',
+    '  ctx.effect(() => async () => {',
+    "    child.kill('SIGTERM');",
+    '    await new Promise((done) => {',
+    '      const timer = setTimeout(done, 5000);',
+    "      child.on('exit', () => { clearTimeout(timer); done(); });",
+    '    });',
+    "    writeFileSync(process.env.CLEANUP_DONE, 'done');",
+    '  });',
+    "  writeFileSync(process.env.CLEANUP_READY, 'ready');",
+    '}',
+    '',
+  ].join('\n'));
+  return home;
+}
+
+async function waitForFile(file, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (existsSync(file)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return false;
+}
+
+function waitForExit(child, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('the launcher did not exit')), timeoutMs);
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      resolve({ code, signal });
+    });
+  });
+}
+
+test('a signal waits for the profile disposers before the launcher exits', async () => {
+  const box = sandbox();
+  const home = cleanupProfile();
+  const pidFile = join(box.root, 'window.pid');
+  const readyFile = join(box.root, 'ready');
+  const doneFile = join(box.root, 'cleanup.done');
+  const child = spawn(process.execPath, [BIN, '--profile', 'cleanup'], {
+    cwd: box.root,
+    env: {
+      PATH: process.env.PATH,
+      HOME: box.home,
+      XDG_CONFIG_HOME: box.config,
+      XDG_DATA_HOME: box.data,
+      DSH_HOME: home,
+      CLEANUP_PID: pidFile,
+      CLEANUP_READY: readyFile,
+      CLEANUP_DONE: doneFile,
+    },
+  });
+  let stderr = '';
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  try {
+    assert.equal(await waitForFile(readyFile, 20000), true, `the profile never booted: ${stderr}`);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    child.kill('SIGTERM');
+    const { code, signal } = await waitForExit(child, 20000);
+    assert.equal(signal, null, `the launcher died from ${signal} instead of shutting down: ${stderr}`);
+    assert.equal(code, 0, stderr);
+    assert.equal(existsSync(doneFile), true, 'the disposer did not finish before the launcher exited');
+    const windowPid = Number(readFileSync(pidFile, 'utf8'));
+    assert.throws(() => process.kill(windowPid, 0), /ESRCH/);
+    assert.doesNotMatch(stderr, /shutdown failed/);
+  } finally {
+    if (existsSync(pidFile)) {
+      const windowPid = Number(readFileSync(pidFile, 'utf8'));
+      try { process.kill(windowPid, 'SIGKILL'); } catch { /* the child is already gone */ }
+    }
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  }
+});

@@ -16,6 +16,7 @@ export const INSTALL_ANCHOR = fileURLToPath(new URL('../package.json', import.me
 export const ROOT_FILENAME = 'cordis.yml';
 const ROOT_CONFIG = '[]\n';
 const FIBER_ACTIVE = 2;
+const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 function createReadiness() {
   let ready = false;
@@ -150,9 +151,12 @@ export async function boot({ home = resolveDshHome(), profile: name, fromDefault
   };
   const stop = (code) => {
     if (stopping !== undefined) return stopping;
-    requestExit(code);
     stopping = (async () => {
       let failure;
+      const forced = setTimeout(() => {
+        warn?.(`${NAME}: shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS}ms; exiting\n`);
+        requestExit(code);
+      }, SHUTDOWN_TIMEOUT_MS);
       try {
         await ctx?.fiber.dispose();
       } catch (problem) {
@@ -163,8 +167,10 @@ export async function boot({ home = resolveDshHome(), profile: name, fromDefault
       } catch (problem) {
         failure ??= problem;
       }
+      clearTimeout(forced);
       settleReady();
       if (failure !== undefined) warn?.(`${NAME}: shutdown failed: ${String(failure)}\n`);
+      requestExit(code);
       return code;
     })();
     return stopping;
