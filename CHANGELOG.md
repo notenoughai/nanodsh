@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `nanodsh instance create --distro` and `nanodsh distro add` clean up after a package that fails to install: a home the command made is removed, a pre-existing empty home is left empty, and an existing instance is left as it was.
 - `nanodsh distro add` installs into a staging directory and moves the result into the instance only after the package proves to be a compatible distro, so a failed add leaves nothing behind to block the next one.
 - `nanodsh plugin --profile <name> update` no longer passes `--allow-build` to pnpm, which `pnpm update` rejects, so the update runs instead of exiting with an argument error.
+- `nanodsh plugin` prints the profile's `dsh.profile.bundles` list, so the reported bundles are the ones the manifest holds instead of only the installed dependencies.
 
 ## [0.0.3] - 2026-11-18
 

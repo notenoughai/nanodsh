@@ -570,10 +570,21 @@ test('--dump-config composes with the app-boot the instance provides', () => {
 });
 
 const FAKE_ADD_PNPM = `#!/usr/bin/env node
-const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs');
+const { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
 const { join } = require('node:path');
 const args = process.argv.slice(2);
 if (process.env.FAKE_LOG) appendFileSync(process.env.FAKE_LOG, args.join(' ') + '\\n');
+if (args[0] === 'remove') {
+  const file = join(process.cwd(), 'package.json');
+  const manifest = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+  for (const argument of args.slice(1)) {
+    if (argument.startsWith('-')) continue;
+    if (manifest.dependencies) delete manifest.dependencies[argument];
+    rmSync(join(process.cwd(), 'node_modules', argument), { recursive: true, force: true });
+  }
+  writeFileSync(file, JSON.stringify(manifest, null, 2) + '\\n');
+  process.exit(0);
+}
 if (args[0] !== 'add') process.exit(0);
 const file = join(process.cwd(), 'package.json');
 const manifest = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
@@ -725,4 +736,47 @@ test('a failed add still names approve-builds', () => {
   const result = pluginRun(box, fixture, ['plugin', '--profile', 'web', 'add', '@deepseek-ai/dsh-headless']);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /pnpm add .* exited 2; if pnpm reported ignored build scripts, run "pnpm approve-builds --all"/);
+});
+
+function printedBundles(stdout) {
+  const line = stdout.split('\n').find((entry) => entry.includes(' bundles: '));
+  if (line === undefined) return undefined;
+  const listed = line.slice(line.indexOf(' bundles: ') + ' bundles: '.length);
+  return listed === '(none)' ? [] : listed.split(', ');
+}
+
+function manifestBundles(home, profile) {
+  return JSON.parse(readFileSync(join(home, 'profiles', profile, 'package.json'), 'utf8')).dsh.profile.bundles;
+}
+
+test('plugin add reports the bundle list the profile manifest holds', () => {
+  const box = sandbox();
+  const fixture = pluginFixture(box);
+  const created = run(['profile', 'create', 'work'], box, { env: { DSH_HOME: fixture.home } });
+  assert.equal(created.status, 0, created.stderr);
+  const result = pluginRun(box, fixture, ['plugin', '--profile', 'work', 'add', '@deepseek-ai/dsh-headless']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(manifestBundles(fixture.home, 'work'), ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless']);
+  assert.deepEqual(printedBundles(result.stdout), manifestBundles(fixture.home, 'work'));
+});
+
+test('plugin remove reports the bundle list left in the manifest', () => {
+  const box = sandbox();
+  const fixture = pluginFixture(box);
+  assert.equal(run(['profile', 'create', 'work'], box, { env: { DSH_HOME: fixture.home } }).status, 0);
+  assert.equal(pluginRun(box, fixture, ['plugin', '--profile', 'work', 'add', '@deepseek-ai/dsh-headless']).status, 0);
+  const result = pluginRun(box, fixture, ['plugin', '--profile', 'work', 'remove', '@deepseek-ai/dsh-headless']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(manifestBundles(fixture.home, 'work'), ['@deepseek-ai/dsh-base']);
+  assert.deepEqual(printedBundles(result.stdout), manifestBundles(fixture.home, 'work'));
+});
+
+test('a plain add reports the bundles it left untouched', () => {
+  const box = sandbox();
+  const fixture = pluginFixture(box);
+  const result = pluginRun(box, fixture, ['plugin', '--profile', 'web', 'add', '--plain', '@deepseek-ai/dsh-web-app']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(manifestBundles(fixture.home, 'web'), ['@deepseek-ai/dsh-base']);
+  assert.deepEqual(printedBundles(result.stdout), manifestBundles(fixture.home, 'web'));
+  assert.match(result.stdout, /installed without composing/);
 });

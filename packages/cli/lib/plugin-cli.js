@@ -34,7 +34,7 @@ export async function runPluginCli(argv, { home }) {
   const withoutSelection = takeFlag(takeFlag(profileFlag.rest, '--instance').rest, '--home').rest;
   const result = await runPluginCommand({ home, profile: profileFlag.value, args: withoutSelection });
   for (const notice of result.notices) process.stderr.write(`${notice}\n`);
-  const bundles = result.enabled.length === 0 ? '(none)' : result.enabled.join(', ');
+  const bundles = result.bundles.length === 0 ? '(none)' : result.bundles.join(', ');
   process.stdout.write(`nanodsh: profile ${result.profile} bundles: ${bundles}\n`);
   if (result.plain) {
     process.stdout.write('nanodsh: installed without composing\n');

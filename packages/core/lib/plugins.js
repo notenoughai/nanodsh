@@ -11,6 +11,10 @@ function pinHostVersions(args, version) {
   return args.map((argument) => (argument.startsWith('@deepseek-ai/') && argument.lastIndexOf('@') === 0 ? `${argument}@${version}` : argument));
 }
 
+function bundlesOf(inventory) {
+  return inventory.manifest.dsh?.profile?.bundles ?? [];
+}
+
 /** Forwards pnpm arguments to a profile and reports the bundles it now composes. */
 export async function runPluginCommand({ home, profile, args }) {
   if (!isProfileName(profile)) throw new Error(`nanodsh: ${JSON.stringify(profile)} is not a valid profile name`);
@@ -39,13 +43,11 @@ export async function runPluginCommand({ home, profile, args }) {
   if (plain) {
     const after = readProfilePlugins(location);
     const beforeNames = new Set(before.dependencies.map((dependency) => dependency.name));
-    const enabled = after.dependencies.filter((dependency) => dependency.enabled).map((dependency) => dependency.name);
     const addedPlainDependencies = after.dependencies
       .filter((dependency) => !dependency.bundle && !beforeNames.has(dependency.name))
       .map((dependency) => dependency.name);
-    return { profile, profileDir, enabled, addedPlainDependencies, plain: true, notices };
+    return { profile, profileDir, bundles: bundlesOf(after), addedPlainDependencies, plain: true, notices };
   }
   const { plugins, addedPlainDependencies } = reconcileProfilePlugins({ ...location, before, preserveDisabled: true });
-  const enabled = plugins.dependencies.filter((dependency) => dependency.enabled).map((dependency) => dependency.name);
-  return { profile, profileDir, enabled, addedPlainDependencies, plain: false, notices };
+  return { profile, profileDir, bundles: bundlesOf(plugins), addedPlainDependencies, plain: false, notices };
 }
