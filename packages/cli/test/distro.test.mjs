@@ -205,3 +205,72 @@ test('plugin add forwards the allowBuilds of the selected distro', () => {
   const lines = calls(box);
   assert.equal(lines.at(-1), 'add --allow-build=node-pty --allow-build=koffi @deepseek-ai/dsh-web-app');
 });
+
+function snapshot(root) {
+  const entries = [];
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      const relative = path.slice(root.length + 1);
+      if (entry.isDirectory()) {
+        entries.push(`${relative}/`);
+        walk(path);
+      } else {
+        entries.push(`${relative}:${readFileSync(path, 'utf8')}`);
+      }
+    }
+  };
+  walk(root);
+  return entries.sort();
+}
+
+function emptyInstance(box) {
+  const home = join(box.root, 'instance');
+  mkdirSync(join(home, 'profiles'), { recursive: true });
+  writeFileSync(join(home, 'package.json'), `${JSON.stringify({ name: 'dsh-instance', private: true, type: 'module', dependencies: {} }, null, 2)}\n`);
+  writeFileSync(join(home, 'pnpm-workspace.yaml'), 'packages:\n  - profiles/*\n');
+  return home;
+}
+
+test('distro add leaves the home unchanged when the package is not a distro', () => {
+  const box = sandbox();
+  const home = emptyInstance(box);
+  const before = snapshot(home);
+  const result = run(['distro', 'add', '@nanodsh/not-a-distro@0.0.1', '--home', home], box, {
+    FAKE_MANIFEST: JSON.stringify({ name: '@nanodsh/not-a-distro', version: '0.0.1' }),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /is not a distro/);
+  assert.deepEqual(snapshot(home), before);
+  assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
+  const retried = run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box);
+  assert.equal(retried.status, 0, retried.stderr);
+  assert.equal(JSON.parse(readFileSync(join(home, 'distro.json'), 'utf8')).distro, '@nanodsh/distro-standard');
+});
+
+test('distro add leaves the home unchanged when the distro api does not match', () => {
+  const box = sandbox();
+  const home = emptyInstance(box);
+  const before = snapshot(home);
+  const result = run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box, {
+    FAKE_MANIFEST: JSON.stringify({ ...MANIFEST, dsh: { distro: { api: 2, defaultBundles: [] } } }),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /declares api 2 but this launcher supports 1/);
+  assert.deepEqual(snapshot(home), before);
+  assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
+  const retried = run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box);
+  assert.equal(retried.status, 0, retried.stderr);
+  assert.equal(JSON.parse(readFileSync(join(home, 'distro.json'), 'utf8')).distro, '@nanodsh/distro-standard');
+});
+
+test('distro add removes the instance directory it created when the add fails', () => {
+  const box = sandbox();
+  const home = join(box.root, 'fresh');
+  const result = run(['distro', 'add', '@nanodsh/not-a-distro@0.0.1', '--home', home], box, {
+    FAKE_MANIFEST: JSON.stringify({ name: '@nanodsh/not-a-distro', version: '0.0.1' }),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /is not a distro/);
+  assert.equal(existsSync(home), false);
+});

@@ -149,18 +149,72 @@ function writeSelection(home, name, manifest, api) {
   renameSync(staging, file);
 }
 
+function installInto(staging, home, backup, action) {
+  const moved = [];
+  const move = (from, to) => {
+    if (!existsSync(from)) return;
+    renameSync(from, to);
+    moved.push([from, to]);
+  };
+  try {
+    for (const entry of ['package.json', 'pnpm-lock.yaml']) move(join(home, entry), join(backup, entry));
+    move(join(home, 'node_modules'), join(backup, 'node_modules'));
+    move(join(staging, 'package.json'), join(home, 'package.json'));
+    move(join(staging, 'pnpm-lock.yaml'), join(home, 'pnpm-lock.yaml'));
+    move(join(staging, 'node_modules'), join(home, 'node_modules'));
+  } catch (error) {
+    let restored = true;
+    for (const [from, to] of moved.reverse()) {
+      try {
+        renameSync(to, from);
+      } catch {
+        restored = false;
+      }
+    }
+    if (restored) throw new Error(`${PREFIX}: ${action} failed; ${home} was left unchanged`, { cause: error });
+    const failure = new Error(`${PREFIX}: ${action} failed and ${home} may need repair; the previous tree is in ${backup}`, { cause: error });
+    failure.keepStaging = true;
+    throw failure;
+  }
+}
+
 export async function addDistro(spec, home, { warn } = {}) {
   if (typeof spec !== 'string' || spec === '') throw new Error(`${PREFIX}: distro add needs a package, for example "@nanodsh/distro-standard@0.0.1"`);
+  const createdHome = !existsSync(home);
   prepareHome(home);
   if (existsSync(selectionFile(home))) {
     const selection = readJson(selectionFile(home));
     throw new Error(`${PREFIX}: ${home} already selects ${selection.distro}@${selection.version}; run "nanodsh distro switch <package>" to replace it`);
   }
-  await runPnpm(['add', ...(await allowBuildArgs(spec, warn)), spec], home);
-  const { name, manifest } = findDistro(home);
-  const api = checkApi(name, manifest);
-  writeSelection(home, name, manifest, api);
-  return { name, version: manifest.version, api };
+  const staging = mkdtempSync(join(dirname(join(home, 'x')), '.distro-staging-'));
+  const backup = `${staging}/previous`;
+  let keepStaging = false;
+  let keepHome = false;
+  try {
+    writeJson(join(staging, 'package.json'), { name: 'dsh-instance', private: true, type: 'module', dependencies: {} });
+    writeFileSync(join(staging, 'pnpm-workspace.yaml'), WORKSPACE);
+    mkdirSync(join(staging, 'profiles'), { recursive: true });
+    await runPnpm(['add', ...(await allowBuildArgs(spec, warn)), spec], staging);
+    const { name, manifest } = findDistro(staging);
+    const api = checkApi(name, manifest);
+    mkdirSync(backup, { recursive: true });
+    try {
+      installInto(staging, home, backup, 'distro add');
+    } catch (error) {
+      if (error.keepStaging === true) {
+        keepStaging = true;
+        keepHome = true;
+      }
+      throw error;
+    }
+    writeSelection(home, name, manifest, api);
+    return { name, version: manifest.version, api };
+  } catch (error) {
+    if (createdHome && !keepHome) rmSync(home, { recursive: true, force: true });
+    throw error;
+  } finally {
+    if (!keepStaging) rmSync(staging, { recursive: true, force: true });
+  }
 }
 
 export async function switchDistro(spec, home, { warn } = {}) {
@@ -180,31 +234,11 @@ export async function switchDistro(spec, home, { warn } = {}) {
     const api = checkApi(name, manifest);
     const selection = { distro: name, version: manifest.version, api };
     mkdirSync(backup, { recursive: true });
-    const moved = [];
-    const move = (from, to) => {
-      if (!existsSync(from)) return;
-      renameSync(from, to);
-      moved.push([from, to]);
-    };
     try {
-      for (const entry of ['package.json', 'pnpm-lock.yaml']) move(join(home, entry), join(backup, entry));
-      move(join(home, 'node_modules'), join(backup, 'node_modules'));
-      move(join(staging, 'package.json'), join(home, 'package.json'));
-      move(join(staging, 'pnpm-lock.yaml'), join(home, 'pnpm-lock.yaml'));
-      move(join(staging, 'node_modules'), join(home, 'node_modules'));
+      installInto(staging, home, backup, 'distro switch');
     } catch (error) {
-      let restored = true;
-      for (const [from, to] of moved.reverse()) {
-        try {
-          renameSync(to, from);
-        } catch {
-          restored = false;
-        }
-      }
-      if (!restored) keepStaging = true;
-      throw new Error(restored
-        ? `${PREFIX}: distro switch failed; ${home} was left unchanged`
-        : `${PREFIX}: distro switch failed and ${home} may need repair; the previous tree is in ${backup}`, { cause: error });
+      if (error.keepStaging === true) keepStaging = true;
+      throw error;
     }
     writeSelection(home, name, manifest, api);
     return { name, version: manifest.version, api };
