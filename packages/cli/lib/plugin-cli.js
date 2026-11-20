@@ -7,6 +7,7 @@ directory, then reconcile dsh.profile.bundles from what is installed.
 
 Examples:
   nanodsh plugin --profile work add @deepseek-ai/dsh-headless
+  nanodsh plugin --profile work add --plain @scope/tool
   nanodsh plugin --profile work remove @deepseek-ai/dsh-headless
 
 A missing profile is initialized first, with the distro's default bundles.
@@ -35,7 +36,9 @@ export async function runPluginCli(argv, { home }) {
   for (const notice of result.notices) process.stderr.write(`${notice}\n`);
   const bundles = result.enabled.length === 0 ? '(none)' : result.enabled.join(', ');
   process.stdout.write(`nanodsh: profile ${result.profile} bundles: ${bundles}\n`);
-  if (result.addedPlainDependencies.length > 0) {
+  if (result.plain) {
+    process.stdout.write('nanodsh: installed without composing\n');
+  } else if (result.addedPlainDependencies.length > 0) {
     process.stdout.write(`nanodsh: installed but not a bundle: ${result.addedPlainDependencies.join(', ')}\n`);
   }
 }

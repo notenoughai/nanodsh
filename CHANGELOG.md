@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `nanodsh plugin --profile <name> add --plain <package>` installs a package into the profile without adding it to the bundles the profile composes; a later `add` leaves it uncomposed too.
+
 ### Fixed
 
 - The launcher disposes the profile before it exits, so plugin cleanup finishes and the child processes it started do not outlive it.

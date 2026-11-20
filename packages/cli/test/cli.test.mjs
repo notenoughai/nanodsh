@@ -568,3 +568,115 @@ test('--dump-config composes with the app-boot the instance provides', () => {
   assert.equal(result.stdout, '# composed by the instance runtime\n');
   assert.doesNotMatch(result.stderr, /skipping profile bundle/);
 });
+
+const FAKE_ADD_PNPM = `#!/usr/bin/env node
+const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs');
+const { join } = require('node:path');
+const args = process.argv.slice(2);
+if (process.env.FAKE_LOG) appendFileSync(process.env.FAKE_LOG, args.join(' ') + '\\n');
+if (args[0] !== 'add') process.exit(0);
+const file = join(process.cwd(), 'package.json');
+const manifest = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+manifest.dependencies = { ...(manifest.dependencies || {}) };
+for (const argument of args.slice(1)) {
+  if (argument.startsWith('-')) continue;
+  const at = argument.indexOf('@', 1);
+  const name = at === -1 ? argument : argument.slice(0, at);
+  const version = at === -1 ? '0.0.0' : argument.slice(at + 1);
+  manifest.dependencies[name] = version;
+  const dir = join(process.cwd(), 'node_modules', name);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name, version, dsh: { bundle: { patch: './cordis.patch.yml' } } }));
+}
+writeFileSync(file, JSON.stringify(manifest, null, 2) + '\\n');
+process.exit(0);
+`;
+
+function pluginFixture(box) {
+  const home = join(box.root, 'instance');
+  const distro = join(home, 'node_modules', '@local', 'distro-fake');
+  const runtime = join(home, 'node_modules', '@deepseek-ai', 'dsh-app-boot');
+  mkdirSync(distro, { recursive: true });
+  mkdirSync(runtime, { recursive: true });
+  writeFileSync(join(home, 'distro.json'), JSON.stringify({ distro: '@local/distro-fake', version: '0.0.0', api: 1 }));
+  writeFileSync(join(home, 'package.json'), JSON.stringify({ name: 'dsh-instance', private: true, dependencies: { '@local/distro-fake': 'file:./distro' } }));
+  writeFileSync(join(distro, 'package.json'), JSON.stringify({
+    name: '@local/distro-fake',
+    version: '0.0.0',
+    dsh: { distro: { api: 1, defaultBundles: ['@deepseek-ai/dsh-base'] } },
+  }));
+  writeFileSync(join(runtime, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-app-boot', version: '0.2.2-rc.3' }));
+  const profile = join(home, 'profiles', 'web');
+  mkdirSync(join(profile, 'node_modules', '@deepseek-ai', 'dsh-base'), { recursive: true });
+  writeFileSync(join(profile, 'package.json'), JSON.stringify({
+    name: 'dsh-profile-web',
+    private: true,
+    dependencies: { '@deepseek-ai/dsh-base': '0.2.2-rc.3' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } },
+  }));
+  writeFileSync(join(profile, 'node_modules', '@deepseek-ai', 'dsh-base', 'package.json'), JSON.stringify({
+    name: '@deepseek-ai/dsh-base', version: '0.2.2-rc.3', dsh: { bundle: { patch: './cordis.patch.yml' } },
+  }));
+  const bin = join(box.root, 'bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, 'pnpm'), FAKE_ADD_PNPM);
+  chmodSync(join(bin, 'pnpm'), 0o755);
+  return { home, bin, profile, log: join(box.root, 'pnpm-args') };
+}
+
+function pluginRun(box, fixture, args) {
+  return run(args, box, { env: { DSH_HOME: fixture.home, PATH: `${fixture.bin}:${process.env.PATH}`, FAKE_LOG: fixture.log } });
+}
+
+test('plugin add --plain installs without composing', () => {
+  const box = sandbox();
+  const fixture = pluginFixture(box);
+  const result = pluginRun(box, fixture, ['plugin', '--profile', 'web', 'add', '--plain', '@deepseek-ai/dsh-web-app']);
+  assert.equal(result.status, 0, result.stderr);
+  const manifest = JSON.parse(readFileSync(join(fixture.profile, 'package.json'), 'utf8'));
+  assert.deepEqual(manifest.dsh.profile.bundles, ['@deepseek-ai/dsh-base']);
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-web-app'], '0.2.2-rc.3');
+  assert.match(result.stdout, /installed without composing/);
+  assert.doesNotMatch(result.stdout, /installed but not a bundle/);
+  assert.match(readFileSync(fixture.log, 'utf8'), /@deepseek-ai\/dsh-web-app@0\.2\.2-rc\.3/);
+  assert.doesNotMatch(readFileSync(fixture.log, 'utf8'), /--plain/);
+});
+
+test('a plain install stays out of the bundles after the next add', () => {
+  const box = sandbox();
+  const fixture = pluginFixture(box);
+  assert.equal(pluginRun(box, fixture, ['plugin', '--profile', 'web', 'add', '--plain', '@deepseek-ai/dsh-web-app']).status, 0);
+  const result = pluginRun(box, fixture, ['plugin', '--profile', 'web', 'add', '@deepseek-ai/dsh-headless']);
+  assert.equal(result.status, 0, result.stderr);
+  const manifest = JSON.parse(readFileSync(join(fixture.profile, 'package.json'), 'utf8'));
+  assert.deepEqual(manifest.dsh.profile.bundles, ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-headless']);
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-web-app'], '0.2.2-rc.3');
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-headless'], '0.2.2-rc.3');
+  assert.match(result.stdout, /bundles: @deepseek-ai\/dsh-base, @deepseek-ai\/dsh-headless/);
+  assert.doesNotMatch(result.stdout, /installed without composing/);
+});
+
+test('--plain is read on either side of the package name', () => {
+  for (const args of [
+    ['plugin', '--profile', 'web', 'add', '--plain', '@deepseek-ai/dsh-web-app'],
+    ['plugin', '--profile', 'web', 'add', '@deepseek-ai/dsh-web-app', '--plain'],
+  ]) {
+    const box = sandbox();
+    const fixture = pluginFixture(box);
+    const result = pluginRun(box, fixture, args);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /installed without composing/);
+    assert.doesNotMatch(readFileSync(fixture.log, 'utf8'), /--plain/);
+  }
+});
+
+test('--plain is refused by the commands that compose', () => {
+  for (const command of ['remove', 'install', 'update']) {
+    const box = sandbox();
+    const fixture = pluginFixture(box);
+    const result = pluginRun(box, fixture, ['plugin', '--profile', 'web', command, '--plain', '@deepseek-ai/dsh-web-app']);
+    assert.equal(result.status, 1, `${command} accepted --plain`);
+    assert.match(result.stderr, /--plain only applies to "add"/);
+    assert.equal(existsSync(fixture.log), false);
+  }
+});

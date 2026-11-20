@@ -14,8 +14,13 @@ function pinHostVersions(args, version) {
 /** Forwards pnpm arguments to a profile and reports the bundles it now composes. */
 export async function runPluginCommand({ home, profile, args }) {
   if (!isProfileName(profile)) throw new Error(`nanodsh: ${JSON.stringify(profile)} is not a valid profile name`);
-  if (args.length === 0) {
+  const plain = args.includes('--plain');
+  const forwardedInput = plain ? args.filter((argument) => argument !== '--plain') : args;
+  if (forwardedInput.length === 0) {
     throw new Error('nanodsh: plugin needs pnpm arguments to forward, for example "add <package>"');
+  }
+  if (plain && forwardedInput[0] !== 'add') {
+    throw new Error('nanodsh: --plain only applies to "add"');
   }
   const notices = [];
   const profileDir = join(home, 'profiles', profile);
@@ -25,13 +30,22 @@ export async function runPluginCommand({ home, profile, args }) {
     notices.push(`nanodsh: initialized profile ${profile} at ${profileDir}`);
   }
   const installAnchor = instance?.installAnchor ?? INSTALL_ANCHOR;
-  const forwarded = args[0] === 'add' ? pinHostVersions(args, instance?.bundleVersion) : args;
-  const builds = ['add', 'install', 'update'].includes(args[0]) ? (instance?.allowBuilds ?? []) : [];
+  const forwarded = forwardedInput[0] === 'add' ? pinHostVersions(forwardedInput, instance?.bundleVersion) : forwardedInput;
+  const builds = ['add', 'install', 'update'].includes(forwardedInput[0]) ? (instance?.allowBuilds ?? []) : [];
   const forwardedArgs = builds.length === 0 ? forwarded : [forwarded[0], ...builds.map((name) => `--allow-build=${name}`), ...forwarded.slice(1)];
   const location = { binName: NAME, profileDir, installAnchor };
   const before = readProfilePlugins(location);
   await runPnpm(forwardedArgs, profileDir);
+  if (plain) {
+    const after = readProfilePlugins(location);
+    const beforeNames = new Set(before.dependencies.map((dependency) => dependency.name));
+    const enabled = after.dependencies.filter((dependency) => dependency.enabled).map((dependency) => dependency.name);
+    const addedPlainDependencies = after.dependencies
+      .filter((dependency) => !dependency.bundle && !beforeNames.has(dependency.name))
+      .map((dependency) => dependency.name);
+    return { profile, profileDir, enabled, addedPlainDependencies, plain: true, notices };
+  }
   const { plugins, addedPlainDependencies } = reconcileProfilePlugins({ ...location, before, preserveDisabled: true });
   const enabled = plugins.dependencies.filter((dependency) => dependency.enabled).map((dependency) => dependency.name);
-  return { profile, profileDir, enabled, addedPlainDependencies, notices };
+  return { profile, profileDir, enabled, addedPlainDependencies, plain: false, notices };
 }
