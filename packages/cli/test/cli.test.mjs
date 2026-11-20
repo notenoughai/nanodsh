@@ -680,3 +680,49 @@ test('--plain is refused by the commands that compose', () => {
     assert.equal(existsSync(fixture.log), false);
   }
 });
+
+function allowBuildFixture(box) {
+  const fixture = pluginFixture(box);
+  const file = join(fixture.home, 'node_modules', '@local', 'distro-fake', 'package.json');
+  const manifest = JSON.parse(readFileSync(file, 'utf8'));
+  manifest.dsh.distro.allowBuilds = ['node-pty', 'koffi'];
+  writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+  return fixture;
+}
+
+test('plugin update forwards no build flags', () => {
+  const box = sandbox();
+  const fixture = allowBuildFixture(box);
+  const result = pluginRun(box, fixture, ['plugin', '--profile', 'web', 'update']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(fixture.log, 'utf8').trim(), 'update');
+});
+
+test('plugin install still forwards the build flags', () => {
+  const box = sandbox();
+  const fixture = allowBuildFixture(box);
+  const result = pluginRun(box, fixture, ['plugin', '--profile', 'web', 'install']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(fixture.log, 'utf8').trim(), 'install --allow-build=node-pty --allow-build=koffi');
+});
+
+test('a failed update does not suggest approving build scripts', () => {
+  const box = sandbox();
+  const fixture = allowBuildFixture(box);
+  writeFileSync(join(fixture.bin, 'pnpm'), '#!/bin/sh\nexit 2\n');
+  chmodSync(join(fixture.bin, 'pnpm'), 0o755);
+  const result = pluginRun(box, fixture, ['plugin', '--profile', 'web', 'update']);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /pnpm update exited 2/);
+  assert.doesNotMatch(result.stderr, /approve-builds/);
+});
+
+test('a failed add still names approve-builds', () => {
+  const box = sandbox();
+  const fixture = allowBuildFixture(box);
+  writeFileSync(join(fixture.bin, 'pnpm'), '#!/bin/sh\nexit 2\n');
+  chmodSync(join(fixture.bin, 'pnpm'), 0o755);
+  const result = pluginRun(box, fixture, ['plugin', '--profile', 'web', 'add', '@deepseek-ai/dsh-headless']);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /pnpm add .* exited 2; if pnpm reported ignored build scripts, run "pnpm approve-builds --all"/);
+});

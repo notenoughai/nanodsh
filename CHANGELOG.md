@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `--dump-config`, `--dump-default-config` and `--dump-config-schema` compose with the runtime the instance provides, so a profile whose bundles are newer than the launcher's own runtime no longer loses them to an incompatible-runtime skip.
 - `nanodsh instance create --distro` and `nanodsh distro add` clean up after a package that fails to install: a home the command made is removed, a pre-existing empty home is left empty, and an existing instance is left as it was.
 - `nanodsh distro add` installs into a staging directory and moves the result into the instance only after the package proves to be a compatible distro, so a failed add leaves nothing behind to block the next one.
+- `nanodsh plugin --profile <name> update` no longer passes `--allow-build` to pnpm, which `pnpm update` rejects, so the update runs instead of exiting with an argument error.
 
 ## [0.0.3] - 2026-11-18
 

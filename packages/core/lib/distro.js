@@ -118,7 +118,8 @@ export function runPnpm(args, directory) {
         resolve();
         return;
       }
-      reject(new Error(`${PREFIX}: pnpm ${args.join(' ')} exited ${code}; if pnpm reported ignored build scripts, run "pnpm approve-builds --all" in ${directory} and retry, or declare them in the distro's dsh.distro.allowBuilds`));
+      const hint = ['add', 'install'].includes(args[0]) ? `; if pnpm reported ignored build scripts, run "pnpm approve-builds --all" in ${directory} and retry, or declare them in the distro's dsh.distro.allowBuilds` : '';
+      reject(new Error(`${PREFIX}: pnpm ${args.join(' ')} exited ${code}${hint}`));
     });
   });
 }

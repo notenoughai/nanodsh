@@ -31,7 +31,7 @@ export async function runPluginCommand({ home, profile, args }) {
   }
   const installAnchor = instance?.installAnchor ?? INSTALL_ANCHOR;
   const forwarded = forwardedInput[0] === 'add' ? pinHostVersions(forwardedInput, instance?.bundleVersion) : forwardedInput;
-  const builds = ['add', 'install', 'update'].includes(forwardedInput[0]) ? (instance?.allowBuilds ?? []) : [];
+  const builds = ['add', 'install'].includes(forwardedInput[0]) ? (instance?.allowBuilds ?? []) : [];
   const forwardedArgs = builds.length === 0 ? forwarded : [forwarded[0], ...builds.map((name) => `--allow-build=${name}`), ...forwarded.slice(1)];
   const location = { binName: NAME, profileDir, installAnchor };
   const before = readProfilePlugins(location);
