@@ -1,6 +1,6 @@
 {
   "name": "nanodsh",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "packageManager": "pnpm@12.18.0",
   "description": "Boot a dsh profile, and nothing else.",
