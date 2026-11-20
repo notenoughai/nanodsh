@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - The launcher disposes the profile before it exits, so plugin cleanup finishes and the child processes it started do not outlive it.
 - `--dump-config`, `--dump-default-config` and `--dump-config-schema` compose with the runtime the instance provides, so a profile whose bundles are newer than the launcher's own runtime no longer loses them to an incompatible-runtime skip.
-- `nanodsh instance create` removes the home it created when its distro fails to install, and leaves a pre-existing empty directory empty again, so a failed create no longer leaves a home behind.
+- `nanodsh instance create --distro` and `nanodsh distro add` clean up after a package that fails to install: a home the command made is removed, a pre-existing empty home is left empty, and an existing instance is left as it was.
 - `nanodsh distro add` installs into a staging directory and moves the result into the instance only after the package proves to be a compatible distro, so a failed add leaves nothing behind to block the next one.
 
 ## [0.0.3] - 2026-11-18

@@ -304,8 +304,11 @@ test('instance create empties a home that existed empty when the distro fails', 
 
 test('instance create leaves an existing instance untouched when the distro fails', () => {
   const box = sandbox();
-  const home = emptyInstance(box);
-  writeFileSync(join(home, 'stamp'), 'x\n');
+  const home = join(box.root, 'instance');
+  mkdirSync(join(home, 'profiles', 'web'), { recursive: true });
+  writeFileSync(join(home, 'package.json'), `${JSON.stringify({ name: 'dsh-instance', private: true, type: 'module', dependencies: {} }, null, 2)}\n`);
+  writeFileSync(join(home, 'profiles', 'web', 'package.json'), '{"name":"dsh-profile"}\n');
+  writeFileSync(join(home, 'notes.txt'), 'keep me\n');
   const before = snapshot(home);
   const result = run(['instance', 'create', 'demo', '--home', home, '--distro', '@nanodsh/not-a-distro@0.0.1'], box, {
     FAKE_MANIFEST: JSON.stringify({ name: '@nanodsh/not-a-distro', version: '0.0.1' }),
@@ -314,5 +317,36 @@ test('instance create leaves an existing instance untouched when the distro fail
   assert.match(result.stderr, /is not a distro/);
   assert.deepEqual(snapshot(home), before);
   assert.equal(existsSync(join(box.config, 'nanodsh', 'instances.json')), false);
+  assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
+});
+
+test('distro add empties a home that existed empty when the add fails', () => {
+  const box = sandbox();
+  const home = join(box.root, 'empty');
+  mkdirSync(home);
+  const result = run(['distro', 'add', '@nanodsh/not-a-distro@0.0.1', '--home', home], box, {
+    FAKE_MANIFEST: JSON.stringify({ name: '@nanodsh/not-a-distro', version: '0.0.1' }),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /is not a distro/);
+  assert.equal(existsSync(home), true);
+  assert.deepEqual(readdirSync(home), []);
+  assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
+});
+
+test('distro add leaves an existing instance without a workspace file unchanged when the add fails', () => {
+  const box = sandbox();
+  const home = join(box.root, 'instance');
+  mkdirSync(join(home, 'profiles', 'web'), { recursive: true });
+  writeFileSync(join(home, 'package.json'), `${JSON.stringify({ name: 'dsh-instance', private: true, type: 'module', dependencies: {} }, null, 2)}\n`);
+  writeFileSync(join(home, 'profiles', 'web', 'package.json'), '{"name":"dsh-profile"}\n');
+  writeFileSync(join(home, 'notes.txt'), 'keep me\n');
+  const before = snapshot(home);
+  const result = run(['distro', 'add', '@nanodsh/not-a-distro@0.0.1', '--home', home], box, {
+    FAKE_MANIFEST: JSON.stringify({ name: '@nanodsh/not-a-distro', version: '0.0.1' }),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /is not a distro/);
+  assert.deepEqual(snapshot(home), before);
   assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
 });

@@ -44,13 +44,26 @@ function checkInstanceDirectory(home) {
   }
 }
 
-export function prepareHome(home) {
+function prepareHome(home, created) {
   checkInstanceDirectory(home);
+  if (!existsSync(join(home, 'profiles'))) created.push('profiles');
   mkdirSync(join(home, 'profiles'), { recursive: true });
   if (!existsSync(manifestFile(home))) {
     writeJson(manifestFile(home), { name: 'dsh-instance', private: true, type: 'module', dependencies: {} });
+    created.push('package.json');
   }
-  if (!existsSync(workspaceFile(home))) writeFileSync(workspaceFile(home), WORKSPACE);
+  if (!existsSync(workspaceFile(home))) {
+    writeFileSync(workspaceFile(home), WORKSPACE);
+    created.push('pnpm-workspace.yaml');
+  }
+}
+
+function discardHome(home, existed, created) {
+  if (!existed) {
+    rmSync(home, { recursive: true, force: true });
+    return;
+  }
+  for (const entry of created) rmSync(join(home, entry), { recursive: true, force: true });
 }
 
 function allowBuildList(manifest) {
@@ -180,17 +193,19 @@ function installInto(staging, home, backup, action) {
 
 export async function addDistro(spec, home, { warn } = {}) {
   if (typeof spec !== 'string' || spec === '') throw new Error(`${PREFIX}: distro add needs a package, for example "@nanodsh/distro-standard@0.0.1"`);
-  const createdHome = !existsSync(home);
-  prepareHome(home);
-  if (existsSync(selectionFile(home))) {
-    const selection = readJson(selectionFile(home));
-    throw new Error(`${PREFIX}: ${home} already selects ${selection.distro}@${selection.version}; run "nanodsh distro switch <package>" to replace it`);
-  }
-  const staging = mkdtempSync(join(dirname(join(home, 'x')), '.distro-staging-'));
-  const backup = `${staging}/previous`;
+  const existed = existsSync(home);
+  const created = [];
+  let staging;
   let keepStaging = false;
   let keepHome = false;
   try {
+    prepareHome(home, created);
+    if (existsSync(selectionFile(home))) {
+      const selection = readJson(selectionFile(home));
+      throw new Error(`${PREFIX}: ${home} already selects ${selection.distro}@${selection.version}; run "nanodsh distro switch <package>" to replace it`);
+    }
+    staging = mkdtempSync(join(dirname(join(home, 'x')), '.distro-staging-'));
+    const backup = `${staging}/previous`;
     writeJson(join(staging, 'package.json'), { name: 'dsh-instance', private: true, type: 'module', dependencies: {} });
     writeFileSync(join(staging, 'pnpm-workspace.yaml'), WORKSPACE);
     mkdirSync(join(staging, 'profiles'), { recursive: true });
@@ -210,10 +225,10 @@ export async function addDistro(spec, home, { warn } = {}) {
     writeSelection(home, name, manifest, api);
     return { name, version: manifest.version, api };
   } catch (error) {
-    if (createdHome && !keepHome) rmSync(home, { recursive: true, force: true });
+    if (!keepHome) discardHome(home, existed, created);
     throw error;
   } finally {
-    if (!keepStaging) rmSync(staging, { recursive: true, force: true });
+    if (staging !== undefined && !keepStaging) rmSync(staging, { recursive: true, force: true });
   }
 }
 
