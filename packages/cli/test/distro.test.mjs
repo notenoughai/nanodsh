@@ -274,3 +274,45 @@ test('distro add removes the instance directory it created when the add fails', 
   assert.match(result.stderr, /is not a distro/);
   assert.equal(existsSync(home), false);
 });
+
+test('instance create removes a home it made when the distro fails', () => {
+  const box = sandbox();
+  const home = join(box.root, 'fresh');
+  const result = run(['instance', 'create', 'demo', '--home', home, '--distro', '@nanodsh/not-a-distro@0.0.1'], box, {
+    FAKE_MANIFEST: JSON.stringify({ name: '@nanodsh/not-a-distro', version: '0.0.1' }),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /is not a distro/);
+  assert.equal(existsSync(home), false);
+  assert.equal(existsSync(join(box.config, 'nanodsh', 'instances.json')), false);
+  assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
+});
+
+test('instance create empties a home that existed empty when the distro fails', () => {
+  const box = sandbox();
+  const home = join(box.root, 'empty');
+  mkdirSync(home);
+  const result = run(['instance', 'create', 'demo', '--home', home, '--distro', '@nanodsh/not-a-distro@0.0.1'], box, {
+    FAKE_MANIFEST: JSON.stringify({ name: '@nanodsh/not-a-distro', version: '0.0.1' }),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /is not a distro/);
+  assert.equal(existsSync(home), true);
+  assert.deepEqual(readdirSync(home), []);
+  assert.equal(existsSync(join(box.config, 'nanodsh', 'instances.json')), false);
+});
+
+test('instance create leaves an existing instance untouched when the distro fails', () => {
+  const box = sandbox();
+  const home = emptyInstance(box);
+  writeFileSync(join(home, 'stamp'), 'x\n');
+  const before = snapshot(home);
+  const result = run(['instance', 'create', 'demo', '--home', home, '--distro', '@nanodsh/not-a-distro@0.0.1'], box, {
+    FAKE_MANIFEST: JSON.stringify({ name: '@nanodsh/not-a-distro', version: '0.0.1' }),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /is not a distro/);
+  assert.deepEqual(snapshot(home), before);
+  assert.equal(existsSync(join(box.config, 'nanodsh', 'instances.json')), false);
+  assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
+});

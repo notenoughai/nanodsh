@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { addDistro } from './distro.js';
@@ -71,6 +71,17 @@ export function defaultInstance({ env }) {
   return readRegistry(env).default;
 }
 
+const INSTANCE_ENTRIES = ['distro.json', 'node_modules', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'profiles'];
+
+function discardHome(target, existed, empty) {
+  if (!existed) {
+    rmSync(target, { recursive: true, force: true });
+    return;
+  }
+  if (!empty) return;
+  for (const entry of INSTANCE_ENTRIES) rmSync(join(target, entry), { recursive: true, force: true });
+}
+
 /** Creates the home directory and registers it; an optional distro is installed first. */
 export async function createInstance({ name, home, profile, distro: distroSpec, env }) {
   checkName(name);
@@ -78,20 +89,27 @@ export async function createInstance({ name, home, profile, distro: distroSpec, 
     throw new Error(`nanodsh: instance ${JSON.stringify(name)} is already registered`);
   }
   const target = checkHome(home === undefined ? resolve(dataHome(name, env)) : resolve(expandHome(home)));
+  const existed = existsSync(target);
+  const empty = existed && readdirSync(target).length === 0;
   let distro;
   mkdirSync(target, { recursive: true });
-  if (distroSpec !== undefined) {
-    const added = await addDistro(distroSpec, target);
-    distro = `${added.name}@${added.version}`;
-  }
-  updateRegistry((registry) => {
-    if (registry.instances[name] !== undefined) {
-      throw new Error(`nanodsh: instance ${JSON.stringify(name)} is already registered`);
+  try {
+    if (distroSpec !== undefined) {
+      const added = await addDistro(distroSpec, target);
+      distro = `${added.name}@${added.version}`;
     }
-    registry.instances[name] = distro === undefined ? { home: target } : { home: target, distro };
-    if (profile !== undefined) registry.instances[name].profile = profile;
-    if (registry.default === undefined) registry.default = name;
-  }, env);
+    updateRegistry((registry) => {
+      if (registry.instances[name] !== undefined) {
+        throw new Error(`nanodsh: instance ${JSON.stringify(name)} is already registered`);
+      }
+      registry.instances[name] = distro === undefined ? { home: target } : { home: target, distro };
+      if (profile !== undefined) registry.instances[name].profile = profile;
+      if (registry.default === undefined) registry.default = name;
+    }, env);
+  } catch (error) {
+    discardHome(target, existed, empty);
+    throw error;
+  }
   return { name, home: target };
 }
 
