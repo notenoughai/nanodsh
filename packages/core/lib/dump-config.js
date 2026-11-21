@@ -1,13 +1,11 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { INSTALL_ANCHOR, NAME, ROOT_FILENAME, loadLaunchProfile } from './profile.js';
+import { INSTALL_ANCHOR, NAME, ROOT_FILENAME, collectLayers, loadLaunchProfile } from './profile.js';
 import { loadAppBoot } from './instance-modules.js';
 import { resolveInstance } from './instance.js';
 
-export function homePatchPath(home) {
-  return join(home, 'cordis.patch.yml');
-}
+export { collectLayers, homePatchPath } from './profile.js';
 
 function anchorOf(home) {
   return resolveInstance(home)?.installAnchor ?? INSTALL_ANCHOR;
@@ -15,21 +13,6 @@ function anchorOf(home) {
 
 function runtimeOf(home, appBoot) {
   return appBoot ?? loadAppBoot(home);
-}
-
-/** The layers a dump composes, in order, each labelled with where it came from. */
-export async function collectLayers({ profile, patches = [], home, appBoot }) {
-  const runtime = await runtimeOf(home, appBoot);
-  const layers = profile.layers.map((layer) => ({ label: layer.packageName, patches: layer.patches }));
-  if (existsSync(profile.patchPath)) layers.push({ label: profile.patchPath, patches: profile.patches });
-  const homePatch = homePatchPath(home);
-  const homePatches = runtime.loadOptionalPatches(NAME, homePatch);
-  if (homePatches !== undefined) layers.push({ label: homePatch, patches: homePatches });
-  for (const file of patches) {
-    const absolute = resolve(file);
-    layers.push({ label: absolute, patches: runtime.loadOverlayPatches(NAME, absolute) });
-  }
-  return layers;
 }
 
 function renderDump(layers, runtime) {

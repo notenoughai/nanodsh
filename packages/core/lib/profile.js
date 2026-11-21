@@ -102,6 +102,28 @@ export function loadLaunchProfile(name, home = resolveDshHome(), { fromDefaultPr
   return { ...profile, notices };
 }
 
+function hasComposedEntries(entries) {
+  return entries.some((entry) => entry.disabled !== true && (Array.isArray(entry.config) ? hasComposedEntries(entry.config) : true));
+}
+
+export function homePatchPath(home) {
+  return join(home, 'cordis.patch.yml');
+}
+
+/** The layers a boot composes, in order, each labelled with where it came from. */
+export async function collectLayers({ profile, patches = [], home, appBoot }) {
+  const layers = profile.layers.map((layer) => ({ label: layer.packageName, patches: layer.patches }));
+  if (existsSync(profile.patchPath)) layers.push({ label: profile.patchPath, patches: profile.patches });
+  const homePatch = homePatchPath(home);
+  const homePatches = appBoot.loadOptionalPatches(NAME, homePatch);
+  if (homePatches !== undefined) layers.push({ label: homePatch, patches: homePatches });
+  for (const file of patches) {
+    const absolute = resolve(file);
+    layers.push({ label: absolute, patches: appBoot.loadOverlayPatches(NAME, absolute) });
+  }
+  return layers;
+}
+
 /** Boots a profile and returns the context; signals, printing and exit codes stay with the caller. */
 export async function boot({ home = resolveDshHome(), profile: name, fromDefaultProfile, patches = [], args = [], env = process.env, warn } = {}) {
   const appBoot = await loadAppBoot(home, { warn });
@@ -120,7 +142,8 @@ export async function boot({ home = resolveDshHome(), profile: name, fromDefault
   const installAnchor = instance?.installAnchor ?? INSTALL_ANCHOR;
   const profile = loadLaunchProfile(name, home, { fromDefaultProfile, installAnchor, appBoot });
   writeFileSync(join(profile.dir, ROOT_FILENAME), ROOT_CONFIG);
-  if (profile.layers.length === 0) {
+  const entries = appBoot.composeEntries((await collectLayers({ profile, patches, home, appBoot })).map((layer) => layer.patches), (message) => warn?.(`${NAME}: ${message}\n`));
+  if (!hasComposedEntries(entries)) {
     throw new Error(`${NAME}: profile ${JSON.stringify(name)} composes no entries; install its bundles first`);
   }
   const overlays = patches.flatMap((file) => appBoot.loadOverlayPatches(NAME, resolve(file)));

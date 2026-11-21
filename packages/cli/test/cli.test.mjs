@@ -181,8 +181,10 @@ test('the launcher boots with the app-boot the instance provides', () => {
     "export function loadProfile(binName, name, installAnchor, home) { return { name, dir: join(home, 'profiles', name), patchPath: join(home, 'profiles', name, 'cordis.patch.yml'), layers: [{ packageName: 'stub-bundle' }] }; }",
     'export function reportSkippedBundles() {}',
     'export function loadOverlayPatches() { return {}; }',
+    'export function loadOptionalPatches() { return undefined; }',
     'export async function createRuntimeResolution() { return {}; }',
     'export function readProfilePatches() { return []; }',
+    "export function composeEntries() { return [{ id: 'stub-entry' }]; }",
     "export async function boot() { throw new Error('stub boot used'); }",
   ].join('\n'));
 
@@ -893,4 +895,85 @@ test('an unknown flag hands the rest of the command line to the app', () => {
   assert.equal(result.status, 1);
   assert.equal(result.stdout, '');
   assert.match(result.stderr, /composes no entries/);
+});
+
+const ENTRY_PATCH = '- insert:\n    - id: demo-app\n      name: demo-app\n';
+
+function patchOnlyProfile(box, { patch, overlay } = {}) {
+  const home = join(box.root, 'instance');
+  const profile = join(home, 'profiles', 'patched');
+  const app = join(profile, 'node_modules', 'demo-app');
+  mkdirSync(app, { recursive: true });
+  writeFileSync(join(home, 'package.json'), JSON.stringify({ name: 'dsh-instance', private: true }));
+  writeFileSync(join(profile, 'package.json'), JSON.stringify({ name: 'dsh-profile-patched', private: true, dsh: { profile: { bundles: [] } } }));
+  writeFileSync(join(app, 'package.json'), JSON.stringify({ name: 'demo-app', version: '0.0.0', private: true, type: 'module', exports: './index.js' }));
+  writeFileSync(join(app, 'index.js'), [
+    "import { writeFileSync } from 'node:fs';",
+    "export const name = 'demo-app';",
+    'export function apply(ctx) {',
+    '  const timer = setInterval(() => {}, 1000);',
+    '  ctx.effect(() => () => clearInterval(timer));',
+    '  writeFileSync(process.env.DEMO_READY, "ready\\n");',
+    '}',
+  ].join('\n'));
+  if (patch !== undefined) writeFileSync(join(profile, 'cordis.patch.yml'), patch);
+  const overlayPath = overlay === undefined ? undefined : join(box.root, 'overlay.yml');
+  if (overlayPath !== undefined) writeFileSync(overlayPath, overlay);
+  return { home, profile, overlayPath };
+}
+
+function spawnPatched(box, fixture, extraArgs = []) {
+  const state = { ready: join(box.root, 'ready'), stderr: '' };
+  state.child = spawn(process.execPath, [BIN, '--profile', 'patched', ...extraArgs], {
+    cwd: box.root,
+    env: {
+      PATH: process.env.PATH,
+      HOME: box.home,
+      XDG_CONFIG_HOME: box.config,
+      XDG_DATA_HOME: box.data,
+      DSH_HOME: fixture.home,
+      DEMO_READY: state.ready,
+    },
+  });
+  state.child.stderr.on('data', (chunk) => { state.stderr += chunk; });
+  return state;
+}
+
+async function stopPatched(state) {
+  try {
+    assert.equal(await waitForFile(state.ready, 20000), true, `the app never applied: ${state.stderr}`);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    state.child.kill('SIGTERM');
+    const { code, signal } = await waitForExit(state.child, 20000);
+    assert.equal(signal, null, state.stderr);
+    assert.equal(code, 0, state.stderr);
+  } finally {
+    if (state.child.exitCode === null && state.child.signalCode === null) state.child.kill('SIGKILL');
+  }
+}
+
+test('a profile whose own patch supplies every entry boots', async () => {
+  const box = sandbox();
+  await stopPatched(spawnPatched(box, patchOnlyProfile(box, { patch: ENTRY_PATCH })));
+});
+
+test('a patch overlay alone can supply every entry', async () => {
+  const box = sandbox();
+  const fixture = patchOnlyProfile(box, { overlay: ENTRY_PATCH });
+  await stopPatched(spawnPatched(box, fixture, ['--patch', fixture.overlayPath]));
+});
+
+test('a patch that composes no entries still reports an empty profile', () => {
+  const cases = {
+    'an empty patch list': '[]\n',
+    'a removal of an entry that is not there': '- id: nowhere\n  disabled: true\n',
+    'an insert that is disabled afterwards': `${ENTRY_PATCH}- id: demo-app\n  disabled: true\n`,
+  };
+  for (const [label, patch] of Object.entries(cases)) {
+    const box = sandbox();
+    const fixture = patchOnlyProfile(box, { patch });
+    const result = run(['--profile', 'patched'], box, { env: { DSH_HOME: fixture.home } });
+    assert.equal(result.status, 1, `${label}: ${result.stderr}`);
+    assert.match(result.stderr, /composes no entries/, label);
+  }
 });
