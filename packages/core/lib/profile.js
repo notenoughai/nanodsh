@@ -4,6 +4,7 @@ import { PROFILE_TEMPLATES } from '@deepseek-ai/dsh-official-bundles';
 import { provideCmdline } from '@deepseek-ai/dsh-cmdline';
 import { reportStartupFailure } from './diagnostics.js';
 import { resolveInstance } from './instance.js';
+import { assertBootNodeVersion } from './node-version.js';
 import { VERSION } from './version.js';
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths';
 import { DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment';
@@ -125,7 +126,8 @@ export async function collectLayers({ profile, patches = [], home, appBoot }) {
 }
 
 /** Boots a profile and returns the context; signals, printing and exit codes stay with the caller. */
-export async function boot({ home = resolveDshHome(), profile: name, fromDefaultProfile, patches = [], args = [], env = process.env, warn } = {}) {
+export async function boot({ home = resolveDshHome(), profile: name, fromDefaultProfile, patches = [], args = [], env = process.env, warn, nodeVersion = process.versions.node } = {}) {
+  assertBootNodeVersion(nodeVersion);
   const appBoot = await loadAppBoot(home, { warn });
   const environment = Object.freeze(appBoot.loadLayeredEnv(NAME));
   let disposeProxy = async () => {};

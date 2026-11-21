@@ -26,6 +26,7 @@ export { runPluginCommand } from './lib/plugins.js';
 export { isProfileName } from './lib/names.js';
 export { loadAppBoot, loadInstanceModule } from './lib/instance-modules.js';
 export { VERSION } from './lib/version.js';
+export { assertBootNodeVersion } from './lib/node-version.js';
 export { reportStartupFailure } from './lib/diagnostics.js';
 export { collectLayers, composeConfig, composeDefaultConfig, composeSchema, homePatchPath } from './lib/dump-config.js';
 export {
