@@ -33,13 +33,16 @@ test('a private network address is reported', () => {
 
 test('a private rule from an external file is reported', () => {
   const dir = mkdtempSync(join(tmpdir(), 'dens-rules-'));
-  const file = join(dir, 'desens.txt');
-  writeFileSync(file, 'private-[a-z]+-host\n');
-  const external = loadRules(file);
-  const findings = scanText(`connect ${fabricatedHost}\n`, 'lib/example.js', external);
-  assert.equal(findings.length, 1);
-  assert.equal(findings[0].rule, 'private');
-  rmSync(dir, { recursive: true, force: true });
+  try {
+    const file = join(dir, 'desens.txt');
+    writeFileSync(file, 'private-[a-z]+-host\n');
+    const external = loadRules(file);
+    const findings = scanText(`connect ${fabricatedHost}\n`, 'lib/example.js', external);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].rule, 'private');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('a ruleset override variable makes the command refuse', () => {

@@ -76,8 +76,13 @@ const PNPM_DIRECTORY = pnpmDirectory();
 const NO_OFFLINE_PNPM = PNPM_DIRECTORY === undefined ? 'no usable pnpm executable is available' : false;
 const roots = [];
 
-function realPnpmEnv() {
-  return { PATH: `${PNPM_DIRECTORY}:${process.env.PATH}` };
+function realPnpmEnv(scratch) {
+  return {
+    PATH: `${PNPM_DIRECTORY}:${process.env.PATH}`,
+    TMPDIR: join(scratch, 'tmp'),
+    XDG_DATA_HOME: join(scratch, 'data'),
+    XDG_CACHE_HOME: join(scratch, 'cache'),
+  };
 }
 
 after(() => {
@@ -401,14 +406,14 @@ function localDistro(box, name, version) {
 }
 
 function frozenInstall(home) {
-  return spawnSync('pnpm', ['install', '--offline', '--frozen-lockfile'], { cwd: home, encoding: 'utf8', env: { ...process.env, ...realPnpmEnv() } });
+  return spawnSync('pnpm', ['install', '--offline', '--frozen-lockfile'], { cwd: home, encoding: 'utf8', env: { ...process.env, ...realPnpmEnv(dirname(home)) } });
 }
 
 test('a local distro add keeps the home installable with a frozen lockfile', { skip: NO_OFFLINE_PNPM }, () => {
   const box = sandbox();
   const local = localDistro(box, 'file-distro', '1.0.0');
   const home = join(box.root, 'instance');
-  const added = run(['distro', 'add', `file:${local}`, '--home', home], box, realPnpmEnv());
+  const added = run(['distro', 'add', `file:${local}`, '--home', home], box, realPnpmEnv(box.root));
   assert.equal(added.status, 0, added.stderr);
   const lock = readFileSync(join(home, 'pnpm-lock.yaml'), 'utf8');
   assert.match(lock, /version: file:\.\.\/local\/file-distro\n/);
@@ -423,7 +428,7 @@ test('a local distro switch keeps the home installable with a frozen lockfile', 
   const first = localDistro(box, 'first-distro', '1.0.0');
   const second = localDistro(box, 'second-distro', '2.0.0');
   const home = join(box.root, 'instance');
-  const realPath = realPnpmEnv();
+  const realPath = realPnpmEnv(box.root);
   assert.equal(run(['distro', 'add', `file:${first}`, '--home', home], box, realPath).status, 0);
   const switched = run(['distro', 'switch', `file:${second}`, '--home', home], box, realPath);
   assert.equal(switched.status, 0, switched.stderr);

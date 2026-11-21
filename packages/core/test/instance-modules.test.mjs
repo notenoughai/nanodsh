@@ -1,14 +1,21 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import test from 'node:test';
+import { after, test } from 'node:test';
 import * as launcherAppBoot from '@deepseek-ai/dsh-app-boot';
 import * as launcherHttpProxy from '@deepseek-ai/dsh-http-proxy';
 import { loadAppBoot, loadInstanceModule } from '@nanodsh/core';
 
+const roots = [];
+
+after(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
+});
+
 function home(options = {}) {
   const root = mkdtempSync(join(tmpdir(), 'nanodsh-app-boot-'));
+  roots.push(root);
   const dir = join(root, 'home');
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'dsh-instance', private: true }));

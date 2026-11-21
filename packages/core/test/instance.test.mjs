@@ -1,12 +1,19 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import test from 'node:test';
+import { after, test } from 'node:test';
 import { resolveInstance } from '@nanodsh/core';
+
+const roots = [];
+
+after(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
+});
 
 function instance({ runtime, base } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'nanodsh-instance-'));
+  roots.push(home);
   const distro = join(home, 'node_modules', '@local', 'distro');
   mkdirSync(distro, { recursive: true });
   writeFileSync(join(home, 'distro.json'), JSON.stringify({ distro: '@local/distro', version: '0.0.0', api: 1 }));
