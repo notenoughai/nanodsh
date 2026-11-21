@@ -8,11 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- `nanodsh distro add` and `nanodsh distro switch` stage a local (`file:`) distro beside the instance instead of inside it, so the lockfile records paths the instance can resolve and `pnpm install --frozen-lockfile` no longer fails with `ERR_PNPM_OUTDATED_LOCKFILE`.
-
-### Fixed
-
 - A proxy that fails to install no longer stops the launcher: it boots without the proxy and says why. Proxy support needs Node.js >= 22.19.
+- `nanodsh distro add` and `nanodsh distro switch` stage a local (`file:`) distro beside the instance instead of inside it, so the lockfile records paths the instance can resolve and `pnpm install --frozen-lockfile` no longer fails with `ERR_PNPM_OUTDATED_LOCKFILE`.
 
 ## [0.0.4] - 2026-11-20
 

@@ -192,8 +192,16 @@ function installInto(staging, home, backup, action) {
   }
 }
 
-function makeStaging(home) {
-  const parent = dirname(resolve(home));
+function localSpecPath(spec) {
+  if (spec.startsWith('file:')) return spec.slice('file:'.length);
+  if (spec.startsWith('link:')) return spec.slice('link:'.length);
+  if (spec.startsWith('/') || spec.startsWith('./') || spec.startsWith('../') || spec.startsWith('~')) return spec;
+  return undefined;
+}
+
+function stagingDirectory(home, spec) {
+  if (localSpecPath(spec) === undefined) return mkdtempSync(join(home, '.distro-staging-'));
+  const parent = dirname(home);
   try {
     return mkdtempSync(join(parent, '.distro-staging-'));
   } catch (error) {
@@ -204,18 +212,19 @@ function makeStaging(home) {
 
 export async function addDistro(spec, home, { warn } = {}) {
   if (typeof spec !== 'string' || spec === '') throw new Error(`${PREFIX}: distro add needs a package, for example "@nanodsh/distro-standard@0.0.1"`);
-  const existed = existsSync(home);
+  const target = resolve(home);
+  const existed = existsSync(target);
   const created = [];
   let staging;
   let keepStaging = false;
   let keepHome = false;
   try {
-    prepareHome(home, created);
-    if (existsSync(selectionFile(home))) {
-      const selection = readJson(selectionFile(home));
-      throw new Error(`${PREFIX}: ${home} already selects ${selection.distro}@${selection.version}; run "nanodsh distro switch <package>" to replace it`);
+    prepareHome(target, created);
+    if (existsSync(selectionFile(target))) {
+      const selection = readJson(selectionFile(target));
+      throw new Error(`${PREFIX}: ${target} already selects ${selection.distro}@${selection.version}; run "nanodsh distro switch <package>" to replace it`);
     }
-    staging = makeStaging(home);
+    staging = stagingDirectory(target, spec);
     const backup = `${staging}/previous`;
     writeJson(join(staging, 'package.json'), { name: 'dsh-instance', private: true, type: 'module', dependencies: {} });
     writeFileSync(join(staging, 'pnpm-workspace.yaml'), WORKSPACE);
@@ -225,7 +234,7 @@ export async function addDistro(spec, home, { warn } = {}) {
     const api = checkApi(name, manifest);
     mkdirSync(backup, { recursive: true });
     try {
-      installInto(staging, home, backup, 'distro add');
+      installInto(staging, target, backup, 'distro add');
     } catch (error) {
       if (error.keepStaging === true) {
         keepStaging = true;
@@ -233,10 +242,10 @@ export async function addDistro(spec, home, { warn } = {}) {
       }
       throw error;
     }
-    writeSelection(home, name, manifest, api);
+    writeSelection(target, name, manifest, api);
     return { name, version: manifest.version, api };
   } catch (error) {
-    if (!keepHome) discardHome(home, existed, created);
+    if (!keepHome) discardHome(target, existed, created);
     throw error;
   } finally {
     if (staging !== undefined && !keepStaging) rmSync(staging, { recursive: true, force: true });
@@ -245,10 +254,11 @@ export async function addDistro(spec, home, { warn } = {}) {
 
 export async function switchDistro(spec, home, { warn } = {}) {
   if (typeof spec !== 'string' || spec === '') throw new Error(`${PREFIX}: distro switch needs a package`);
-  if (!existsSync(manifestFile(home))) {
-    throw new Error(`${PREFIX}: ${home} holds no instance; run "nanodsh distro add ${spec}" to create one`);
+  const target = resolve(home);
+  if (!existsSync(manifestFile(target))) {
+    throw new Error(`${PREFIX}: ${target} holds no instance; run "nanodsh distro add ${spec}" to create one`);
   }
-  const staging = makeStaging(home);
+  const staging = stagingDirectory(target, spec);
   const backup = `${staging}/previous`;
   let keepStaging = false;
   try {
@@ -261,12 +271,12 @@ export async function switchDistro(spec, home, { warn } = {}) {
     const selection = { distro: name, version: manifest.version, api };
     mkdirSync(backup, { recursive: true });
     try {
-      installInto(staging, home, backup, 'distro switch');
+      installInto(staging, target, backup, 'distro switch');
     } catch (error) {
       if (error.keepStaging === true) keepStaging = true;
       throw error;
     }
-    writeSelection(home, name, manifest, api);
+    writeSelection(target, name, manifest, api);
     return { name, version: manifest.version, api };
   } finally {
     if (!keepStaging) rmSync(staging, { recursive: true, force: true });
