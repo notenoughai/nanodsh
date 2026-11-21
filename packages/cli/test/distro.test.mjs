@@ -350,3 +350,61 @@ test('distro add leaves an existing instance without a workspace file unchanged 
   assert.deepEqual(snapshot(home), before);
   assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
 });
+
+const NO_REAL_PNPM = spawnSync('pnpm', ['--version'], { encoding: 'utf8' }).status === 0 ? false : 'pnpm is not on PATH';
+
+function localDistro(box, name, version) {
+  const dir = join(box.root, 'local', name);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'package.json'), `${JSON.stringify({ name: `@local/${name}`, version, dsh: { distro: { api: 1, defaultBundles: [] } } })}\n`);
+  return dir;
+}
+
+function frozenInstall(home) {
+  return spawnSync('pnpm', ['install', '--offline', '--frozen-lockfile'], { cwd: home, encoding: 'utf8', env: process.env });
+}
+
+test('a local distro add keeps the home installable with a frozen lockfile', { skip: NO_REAL_PNPM }, () => {
+  const box = sandbox();
+  const local = localDistro(box, 'file-distro', '1.0.0');
+  const home = join(box.root, 'instance');
+  const added = run(['distro', 'add', `file:${local}`, '--home', home], box, { PATH: process.env.PATH });
+  assert.equal(added.status, 0, added.stderr);
+  const lock = readFileSync(join(home, 'pnpm-lock.yaml'), 'utf8');
+  assert.match(lock, /version: file:\.\.\/local\/file-distro\n/);
+  assert.doesNotMatch(lock, /version: file:\.\.\/\.\.\//);
+  assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
+  const frozen = frozenInstall(home);
+  assert.equal(frozen.status, 0, frozen.stderr);
+});
+
+test('a local distro switch keeps the home installable with a frozen lockfile', { skip: NO_REAL_PNPM }, () => {
+  const box = sandbox();
+  const first = localDistro(box, 'first-distro', '1.0.0');
+  const second = localDistro(box, 'second-distro', '2.0.0');
+  const home = join(box.root, 'instance');
+  const realPath = { PATH: process.env.PATH };
+  assert.equal(run(['distro', 'add', `file:${first}`, '--home', home], box, realPath).status, 0);
+  const switched = run(['distro', 'switch', `file:${second}`, '--home', home], box, realPath);
+  assert.equal(switched.status, 0, switched.stderr);
+  const lock = readFileSync(join(home, 'pnpm-lock.yaml'), 'utf8');
+  assert.match(lock, /version: file:\.\.\/local\/second-distro\n/);
+  assert.doesNotMatch(lock, /version: file:\.\.\/\.\.\//);
+  assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
+  const frozen = frozenInstall(home);
+  assert.equal(frozen.status, 0, frozen.stderr);
+});
+
+test('distro add names the parent directory it cannot stage in', () => {
+  const box = sandbox();
+  const parent = join(box.root, 'locked');
+  const home = join(parent, 'instance');
+  mkdirSync(home, { recursive: true });
+  chmodSync(parent, 0o500);
+  const result = run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box);
+  chmodSync(parent, 0o700);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /cannot create a staging directory in .*locked \(/);
+  assert.match(result.stderr, /must be writable/);
+  assert.deepEqual(readdirSync(home), []);
+});

@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { SUPPORTED_DISTRO_API } from './instance.js';
 
 const PREFIX = 'nanodsh';
@@ -192,6 +192,16 @@ function installInto(staging, home, backup, action) {
   }
 }
 
+function makeStaging(home) {
+  const parent = dirname(resolve(home));
+  try {
+    return mkdtempSync(join(parent, '.distro-staging-'));
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`${PREFIX}: cannot create a staging directory in ${parent} (${reason}); the directory that holds ${home} must be writable, so a local distro keeps the same relative path from the instance`, { cause: error });
+  }
+}
+
 export async function addDistro(spec, home, { warn } = {}) {
   if (typeof spec !== 'string' || spec === '') throw new Error(`${PREFIX}: distro add needs a package, for example "@nanodsh/distro-standard@0.0.1"`);
   const existed = existsSync(home);
@@ -205,7 +215,7 @@ export async function addDistro(spec, home, { warn } = {}) {
       const selection = readJson(selectionFile(home));
       throw new Error(`${PREFIX}: ${home} already selects ${selection.distro}@${selection.version}; run "nanodsh distro switch <package>" to replace it`);
     }
-    staging = mkdtempSync(join(dirname(join(home, 'x')), '.distro-staging-'));
+    staging = makeStaging(home);
     const backup = `${staging}/previous`;
     writeJson(join(staging, 'package.json'), { name: 'dsh-instance', private: true, type: 'module', dependencies: {} });
     writeFileSync(join(staging, 'pnpm-workspace.yaml'), WORKSPACE);
@@ -238,7 +248,7 @@ export async function switchDistro(spec, home, { warn } = {}) {
   if (!existsSync(manifestFile(home))) {
     throw new Error(`${PREFIX}: ${home} holds no instance; run "nanodsh distro add ${spec}" to create one`);
   }
-  const staging = mkdtempSync(join(dirname(join(home, 'x')), '.distro-staging-'));
+  const staging = makeStaging(home);
   const backup = `${staging}/previous`;
   let keepStaging = false;
   try {
