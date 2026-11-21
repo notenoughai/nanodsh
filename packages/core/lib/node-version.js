@@ -1,4 +1,4 @@
-const BOOT_NODE = [22, 12, 0];
+const BOOT_NODE = [22, 15, 0];
 
 function parts(version) {
   const match = /^v?(\d+)\.(\d+)\.(\d+)/.exec(version ?? '');

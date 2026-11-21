@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - A proxy that fails to install no longer stops the launcher: it boots without the proxy and says why. Proxy support needs Node.js >= 22.19.
 - `nanodsh distro add` and `nanodsh distro switch` stage a local (`file:`) distro beside the instance instead of inside it, so the lockfile records paths the instance can resolve and `pnpm install --frozen-lockfile` no longer fails with `ERR_PNPM_OUTDATED_LOCKFILE`.
-- Booting a profile now stops with one clear error when Node.js is older than 22.12, instead of failing inside the profile's plugins; the instance, profile, distro, plugin and dump commands keep working on Node.js 20.
+- Booting a profile now stops with one clear error when Node.js is older than 22.15, instead of failing inside the profile's plugins; the instance, profile, distro, plugin and dump commands keep working on Node.js 20.
 - A profile whose entries come only from its own patch file, the home patch, or a `--patch` overlay now boots; the empty-profile check looks at the composed entries instead of the bundle layers.
 - Launcher flags stop at the first argument the launcher does not know: `--instance <name> <profile> --dump-config` now dumps the tree like the other spellings, and `--list-profiles` or `--list-instances` after an app argument no longer list anything.
 
