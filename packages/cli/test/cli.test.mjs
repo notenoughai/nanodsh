@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import test from 'node:test';
+import { after, test } from 'node:test';
 
 const BIN = fileURLToPath(new URL('../bin/nanodsh.js', import.meta.url));
 const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -27,8 +27,15 @@ function tree(root) {
   return entries.sort();
 }
 
+const roots = [];
+
+after(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
+});
+
 function sandbox() {
   const root = mkdtempSync(join(tmpdir(), 'nanodsh-cli-'));
+  roots.push(root);
   const box = {
     root,
     home: join(root, 'home'),
@@ -487,6 +494,7 @@ test('listing profiles without an instance stays silent and succeeds', () => {
 
 function cleanupProfile() {
   const home = mkdtempSync(join(tmpdir(), 'nanodsh-cleanup-'));
+  roots.push(home);
   const profile = join(home, 'profiles', 'cleanup');
   const bundle = join(profile, 'node_modules', 'cleanup-bundle');
   const plugin = join(profile, 'node_modules', 'cleanup-plugin');

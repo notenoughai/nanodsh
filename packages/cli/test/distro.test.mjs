@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import test from 'node:test';
+import { after, test } from 'node:test';
 
 const BIN = fileURLToPath(new URL('../bin/nanodsh.js', import.meta.url));
 
@@ -45,8 +45,48 @@ if (args[0] === 'add') {
 process.exit(0);
 `;
 
+function isCorepackShim(path) {
+  try {
+    return realpathSync(path).includes('/corepack/');
+  } catch {
+    return true;
+  }
+}
+
+function pnpmDirectory() {
+  const found = spawnSync('sh', ['-c', 'command -v pnpm'], { encoding: 'utf8' });
+  if (found.status === 0 && found.stdout.trim() !== '' && !isCorepackShim(found.stdout.trim())) {
+    return dirname(found.stdout.trim());
+  }
+  const home = process.env.COREPACK_HOME ?? join(homedir(), '.cache', 'node', 'corepack');
+  let versions;
+  try {
+    versions = readdirSync(join(home, 'v1', 'pnpm')).sort().reverse();
+  } catch {
+    return undefined;
+  }
+  for (const version of versions) {
+    const candidate = join(home, 'v1', 'pnpm', version, 'pnpm');
+    if (spawnSync(candidate, ['--version'], { encoding: 'utf8' }).status === 0) return dirname(candidate);
+  }
+  return undefined;
+}
+
+const PNPM_DIRECTORY = pnpmDirectory();
+const NO_OFFLINE_PNPM = PNPM_DIRECTORY === undefined ? 'no usable pnpm executable is available' : false;
+const roots = [];
+
+function realPnpmEnv() {
+  return { PATH: `${PNPM_DIRECTORY}:${process.env.PATH}` };
+}
+
+after(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
+});
+
 function sandbox() {
   const root = mkdtempSync(join(tmpdir(), 'nanodsh-distro-'));
+  roots.push(root);
   const bin = join(root, 'bin');
   mkdirSync(bin, { recursive: true });
   writeFileSync(join(bin, 'pnpm'), FAKE_PNPM);
@@ -351,7 +391,7 @@ test('distro add leaves an existing instance without a workspace file unchanged 
   assert.deepEqual(readdirSync(box.root).filter((entry) => entry.startsWith('.distro-staging-')), []);
 });
 
-const NO_REAL_PNPM = spawnSync('pnpm', ['--version'], { encoding: 'utf8' }).status === 0 ? false : 'pnpm is not on PATH';
+
 
 function localDistro(box, name, version) {
   const dir = join(box.root, 'local', name);
@@ -361,14 +401,14 @@ function localDistro(box, name, version) {
 }
 
 function frozenInstall(home) {
-  return spawnSync('pnpm', ['install', '--offline', '--frozen-lockfile'], { cwd: home, encoding: 'utf8', env: process.env });
+  return spawnSync('pnpm', ['install', '--offline', '--frozen-lockfile'], { cwd: home, encoding: 'utf8', env: { ...process.env, ...realPnpmEnv() } });
 }
 
-test('a local distro add keeps the home installable with a frozen lockfile', { skip: NO_REAL_PNPM }, () => {
+test('a local distro add keeps the home installable with a frozen lockfile', { skip: NO_OFFLINE_PNPM }, () => {
   const box = sandbox();
   const local = localDistro(box, 'file-distro', '1.0.0');
   const home = join(box.root, 'instance');
-  const added = run(['distro', 'add', `file:${local}`, '--home', home], box, { PATH: process.env.PATH });
+  const added = run(['distro', 'add', `file:${local}`, '--home', home], box, realPnpmEnv());
   assert.equal(added.status, 0, added.stderr);
   const lock = readFileSync(join(home, 'pnpm-lock.yaml'), 'utf8');
   assert.match(lock, /version: file:\.\.\/local\/file-distro\n/);
@@ -378,12 +418,12 @@ test('a local distro add keeps the home installable with a frozen lockfile', { s
   assert.equal(frozen.status, 0, frozen.stderr);
 });
 
-test('a local distro switch keeps the home installable with a frozen lockfile', { skip: NO_REAL_PNPM }, () => {
+test('a local distro switch keeps the home installable with a frozen lockfile', { skip: NO_OFFLINE_PNPM }, () => {
   const box = sandbox();
   const first = localDistro(box, 'first-distro', '1.0.0');
   const second = localDistro(box, 'second-distro', '2.0.0');
   const home = join(box.root, 'instance');
-  const realPath = { PATH: process.env.PATH };
+  const realPath = realPnpmEnv();
   assert.equal(run(['distro', 'add', `file:${first}`, '--home', home], box, realPath).status, 0);
   const switched = run(['distro', 'switch', `file:${second}`, '--home', home], box, realPath);
   assert.equal(switched.status, 0, switched.stderr);
