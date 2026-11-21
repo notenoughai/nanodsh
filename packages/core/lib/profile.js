@@ -106,10 +106,16 @@ export function loadLaunchProfile(name, home = resolveDshHome(), { fromDefaultPr
 export async function boot({ home = resolveDshHome(), profile: name, fromDefaultProfile, patches = [], args = [], env = process.env, warn } = {}) {
   const appBoot = await loadAppBoot(home, { warn });
   const environment = Object.freeze(appBoot.loadLayeredEnv(NAME));
-  const httpProxy = await loadInstanceModule(home, '@deepseek-ai/dsh-http-proxy', { warn });
-  const disposeProxy = await httpProxy.installProxyFromEnvironment(environment, (message) => {
-    warn?.(`${NAME}: ${message}\n`);
-  });
+  let disposeProxy = async () => {};
+  try {
+    const httpProxy = await loadInstanceModule(home, '@deepseek-ai/dsh-http-proxy', { warn });
+    disposeProxy = await httpProxy.installProxyFromEnvironment(environment, (message) => {
+      warn?.(`${NAME}: ${message}\n`);
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    warn?.(`${NAME}: the proxy was not installed (${reason}); booting without it, so requests go direct. Proxy support needs Node.js >= 22.19.0\n`);
+  }
   const instance = resolveInstance(home);
   const installAnchor = instance?.installAnchor ?? INSTALL_ANCHOR;
   const profile = loadLaunchProfile(name, home, { fromDefaultProfile, installAnchor, appBoot });

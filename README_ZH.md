@@ -14,6 +14,8 @@ nanodsh 仅解析自身参数（选择 profile、叠加 patch 或导出配置）
 
 Node.js >= 20；安装 distro 或插件时需在 `PATH` 中提供 `pnpm`。
 
+代理支持（`HTTP_PROXY`、`HTTPS_PROXY`、`NO_PROXY`）需要 Node.js >= 22.19；更旧的 Node 上启动器会不带代理继续启动，并说明原因。
+
 ## 安装
 
 从 npm 安装启动器：

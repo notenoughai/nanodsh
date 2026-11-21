@@ -14,6 +14,8 @@ nanodsh parses only its own flags (selecting a profile, applying patch overlays,
 
 Node.js >= 20, with `pnpm` on `PATH` for installing distros and plugins.
 
+Proxy support (`HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`) needs Node.js >= 22.19. On older Node the launcher starts without the proxy and says why.
+
 ## Install
 
 Install the launcher from npm:

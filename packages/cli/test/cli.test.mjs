@@ -166,6 +166,37 @@ test('the launcher boots with the app-boot the instance provides', () => {
   assert.doesNotMatch(result.stderr, /does not provide @deepseek-ai\/dsh-app-boot/);
 });
 
+function proxyBootHome(box, proxySource) {
+  const home = join(box.root, 'instance');
+  mkdirSync(join(home, 'profiles', 'demo'), { recursive: true });
+  writeFileSync(join(home, 'package.json'), JSON.stringify({ name: 'dsh-instance', private: true }));
+  writeFileSync(join(home, 'profiles', 'demo', 'package.json'), JSON.stringify({ name: 'dsh-profile-demo', private: true, dsh: { profile: { bundles: [] } } }));
+  const proxy = join(home, 'node_modules', '@deepseek-ai', 'dsh-http-proxy');
+  mkdirSync(proxy, { recursive: true });
+  writeFileSync(join(proxy, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-http-proxy', version: '0.0.0', type: 'module', exports: { '.': './index.js' } }));
+  writeFileSync(join(proxy, 'index.js'), proxySource);
+  return home;
+}
+
+test('a proxy that fails to install does not stop the boot', () => {
+  const box = sandbox();
+  const home = proxyBootHome(box, "export async function installProxyFromEnvironment() { throw new Error('the proxy module refused to install'); }\n");
+  const result = run(['demo'], box, { env: { DSH_HOME: home } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /the proxy was not installed \(the proxy module refused to install\)/);
+  assert.match(result.stderr, /Proxy support needs Node\.js >= 22\.19\.0/);
+  assert.match(result.stderr, /profile "demo" composes no entries/);
+});
+
+test('a proxy that installs cleanly warns about nothing', () => {
+  const box = sandbox();
+  const home = proxyBootHome(box, 'export async function installProxyFromEnvironment() { return async () => {}; }\n');
+  const result = run(['demo'], box, { env: { DSH_HOME: home } });
+  assert.equal(result.status, 1);
+  assert.doesNotMatch(result.stderr, /the proxy was not installed/);
+  assert.match(result.stderr, /profile "demo" composes no entries/);
+});
+
 test('plugin refuses a profile name that leaves profiles/', () => {
   const box = sandbox();
   const dshHome = join(box.root, 'dsh');
