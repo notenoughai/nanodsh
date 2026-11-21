@@ -395,38 +395,3 @@ test('a local distro switch keeps the home installable with a frozen lockfile', 
   assert.equal(frozen.status, 0, frozen.stderr);
 });
 
-test('distro add names the parent directory it cannot stage a local distro in', () => {
-  const box = sandbox();
-  const parent = join(box.root, 'locked');
-  const home = join(parent, 'instance');
-  const local = localDistro(box, 'locked-local', '1.0.0');
-  mkdirSync(home, { recursive: true });
-  chmodSync(parent, 0o500);
-  let result;
-  try {
-    result = run(['distro', 'add', `file:${local}`, '--home', home], box);
-  } finally {
-    chmodSync(parent, 0o700);
-  }
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /cannot create a staging directory in .*locked \(/);
-  assert.match(result.stderr, /must be writable/);
-  assert.deepEqual(readdirSync(home), []);
-});
-
-test('a registry distro still installs when only the home is writable', () => {
-  const box = sandbox();
-  const parent = join(box.root, 'locked');
-  const home = join(parent, 'instance');
-  mkdirSync(home, { recursive: true });
-  chmodSync(parent, 0o500);
-  let result;
-  try {
-    result = run(['distro', 'add', '@nanodsh/distro-standard@0.0.1', '--home', home], box);
-  } finally {
-    chmodSync(parent, 0o700);
-  }
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(existsSync(join(home, 'distro.json')), true);
-  assert.deepEqual(readdirSync(home).filter((entry) => entry.startsWith('.distro-staging-')), []);
-});

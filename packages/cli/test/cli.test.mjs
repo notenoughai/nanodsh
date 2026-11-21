@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readdirSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +8,24 @@ import test from 'node:test';
 
 const BIN = fileURLToPath(new URL('../bin/nanodsh.js', import.meta.url));
 const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+
+function tree(root) {
+  const entries = [];
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      const relative = path.slice(root.length + 1);
+      if (entry.isDirectory()) {
+        entries.push(`${relative}/`);
+        walk(path);
+      } else {
+        entries.push(`${relative}:${readFileSync(path, 'utf8')}`);
+      }
+    }
+  };
+  walk(root);
+  return entries.sort();
+}
 
 function sandbox() {
   const root = mkdtempSync(join(tmpdir(), 'nanodsh-cli-'));
@@ -384,16 +402,16 @@ test('the overridden-home notice is printed once', () => {
   assert.doesNotMatch(same.stderr, /is overridden/);
 });
 
-test('dumping a profile does not need write access', () => {
+test('dumping a profile leaves its directory untouched', () => {
   const box = sandbox();
   const dshHome = join(box.root, 'dsh');
   const profile = join(dshHome, 'profiles', 'web');
   mkdirSync(profile, { recursive: true });
   writeFileSync(join(profile, 'package.json'), '{"name":"p","dsh":{"profile":{"bundles":[]}}}\n');
-  chmodSync(profile, 0o500);
+  const before = tree(profile);
   const result = run(['--profile', 'web', '--dump-config'], box, { env: { DSH_HOME: dshHome } });
-  chmodSync(profile, 0o700);
   assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(tree(profile), before);
 });
 
 test('dumping leaves no root config behind, booting writes one', () => {

@@ -199,18 +199,18 @@ function localSpecPath(spec) {
   return undefined;
 }
 
-function stagingDirectory(home, spec) {
-  if (localSpecPath(spec) === undefined) return mkdtempSync(join(home, '.distro-staging-'));
+function stagingDirectory(home, spec, mkdtemp = mkdtempSync) {
+  if (localSpecPath(spec) === undefined) return mkdtemp(join(home, '.distro-staging-'));
   const parent = dirname(home);
   try {
-    return mkdtempSync(join(parent, '.distro-staging-'));
+    return mkdtemp(join(parent, '.distro-staging-'));
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`${PREFIX}: cannot create a staging directory in ${parent} (${reason}); the directory that holds ${home} must be writable, so a local distro keeps the same relative path from the instance`, { cause: error });
   }
 }
 
-export async function addDistro(spec, home, { warn } = {}) {
+export async function addDistro(spec, home, { warn, mkdtemp } = {}) {
   if (typeof spec !== 'string' || spec === '') throw new Error(`${PREFIX}: distro add needs a package, for example "@nanodsh/distro-standard@0.0.1"`);
   const target = resolve(home);
   const existed = existsSync(target);
@@ -224,7 +224,7 @@ export async function addDistro(spec, home, { warn } = {}) {
       const selection = readJson(selectionFile(target));
       throw new Error(`${PREFIX}: ${target} already selects ${selection.distro}@${selection.version}; run "nanodsh distro switch <package>" to replace it`);
     }
-    staging = stagingDirectory(target, spec);
+    staging = stagingDirectory(target, spec, mkdtemp);
     const backup = `${staging}/previous`;
     writeJson(join(staging, 'package.json'), { name: 'dsh-instance', private: true, type: 'module', dependencies: {} });
     writeFileSync(join(staging, 'pnpm-workspace.yaml'), WORKSPACE);
@@ -252,13 +252,13 @@ export async function addDistro(spec, home, { warn } = {}) {
   }
 }
 
-export async function switchDistro(spec, home, { warn } = {}) {
+export async function switchDistro(spec, home, { warn, mkdtemp } = {}) {
   if (typeof spec !== 'string' || spec === '') throw new Error(`${PREFIX}: distro switch needs a package`);
   const target = resolve(home);
   if (!existsSync(manifestFile(target))) {
     throw new Error(`${PREFIX}: ${target} holds no instance; run "nanodsh distro add ${spec}" to create one`);
   }
-  const staging = stagingDirectory(target, spec);
+  const staging = stagingDirectory(target, spec, mkdtemp);
   const backup = `${staging}/previous`;
   let keepStaging = false;
   try {
