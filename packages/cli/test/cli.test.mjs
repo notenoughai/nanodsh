@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, test } from 'node:test';
+import { parseArgs } from '../lib/args.js';
 
 const BIN = fileURLToPath(new URL('../bin/nanodsh.js', import.meta.url));
 const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -836,4 +837,60 @@ test('a plain add reports the bundles it left untouched', () => {
   assert.deepEqual(manifestBundles(fixture.home, 'web'), ['@deepseek-ai/dsh-base']);
   assert.deepEqual(printedBundles(result.stdout), manifestBundles(fixture.home, 'web'));
   assert.match(result.stdout, /installed without composing/);
+});
+
+function boundaryHome(box) {
+  const home = join(box.root, 'instance');
+  mkdirSync(join(home, 'profiles', 'work'), { recursive: true });
+  writeFileSync(join(home, 'package.json'), JSON.stringify({ name: 'dsh-instance', private: true }));
+  writeFileSync(join(home, 'profiles', 'work', 'package.json'), JSON.stringify({ name: 'dsh-profile-work', private: true, dsh: { profile: { bundles: [] } } }));
+  assert.equal(run(['instance', 'create', 'dev', '--home', home], box).status, 0);
+  return home;
+}
+
+test('every spelling that selects a profile and dumps the same tree dumps it', () => {
+  const box = sandbox();
+  const home = boundaryHome(box);
+  const spellings = [
+    ['--instance', 'dev', '--profile', 'work', '--dump-config'],
+    ['--instance', 'dev', 'work', '--dump-config'],
+    ['--profile', 'work', '--dump-config'],
+    ['work', '--dump-config'],
+  ];
+  const results = spellings.map((args) => run(args, box, { env: { DSH_HOME: home } }));
+  for (const [index, result] of results.entries()) {
+    assert.equal(result.status, 0, `${JSON.stringify(spellings[index])}: ${result.stderr}`);
+    assert.equal(result.stdout, results[0].stdout, `${JSON.stringify(spellings[index])} dumped a different tree`);
+  }
+});
+
+test('an app argument cannot switch on profile listing', () => {
+  const box = sandbox();
+  const home = boundaryHome(box);
+  const result = run(['--profile', 'missing', '--app-flag', '--list-profiles'], box, { env: { DSH_HOME: home } });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /profile "missing" does not exist/);
+});
+
+test('an app argument cannot select an instance', () => {
+  const box = sandbox();
+  const home = boundaryHome(box);
+  const result = run(['--profile', 'missing', '--app-flag', '--instance', 'nowhere'], box, { env: { DSH_HOME: home } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /profile "missing" does not exist/);
+  assert.doesNotMatch(result.stderr, /nowhere/);
+});
+
+test('an unknown flag hands the rest of the command line to the app', () => {
+  const invocation = parseArgs(['work', '--port', '8080', '--dump-config'], PACKAGE_VERSION);
+  assert.equal(invocation.profile, 'work');
+  assert.equal(invocation.dump, undefined);
+  assert.deepEqual(invocation.args, ['--port', '8080', '--dump-config']);
+  const box = sandbox();
+  const home = boundaryHome(box);
+  const result = run(['work', '--port', '8080', '--list-profiles'], box, { env: { DSH_HOME: home } });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /composes no entries/);
 });

@@ -1,4 +1,5 @@
 import { Command, CommanderError, InvalidArgumentError } from 'commander';
+import { launcherBoundary } from '@nanodsh/core';
 
 const HELP_AFTER = `
 Examples:
@@ -84,9 +85,14 @@ export function parseArgs(argv, version) {
       };
     });
 
-  const positional = argv[0] !== undefined && !argv[0].startsWith('-');
+  const boundary = launcherBoundary(argv);
+  const launcher = argv.slice(0, boundary.end);
+  const app = argv.slice(boundary.end);
+  const forwarded = boundary.profileIndex === undefined
+    ? launcher
+    : [...launcher.slice(0, boundary.profileIndex), '--profile', boundary.profile, ...launcher.slice(boundary.profileIndex + 1)];
   try {
-    program.parse(positional ? ['--profile', ...argv] : argv, { from: 'user' });
+    program.parse([...forwarded, ...(app[0] === '--' ? app.slice(1) : app)], { from: 'user' });
   } catch (error) {
     if (error instanceof CommanderError) process.exit(error.exitCode);
     throw error;

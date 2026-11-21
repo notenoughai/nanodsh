@@ -10,6 +10,7 @@ import { renderCompletion, SHELLS } from '../lib/completions.js';
 import {
   VERSION,
   boot,
+  launcherBoundary,
   composeConfig,
   composeDefaultConfig,
   composeSchema,
@@ -96,8 +97,10 @@ try {
     announce(selection);
     await runDistroCli(argv.slice(1), { home: selection.home });
   } else {
-    const listProfiles = argv.includes('--list-profiles');
-    const listInstances = argv.includes('--list-instances');
+    const boundary = launcherBoundary(argv);
+    const launcherTokens = argv.slice(0, boundary.end);
+    const listProfiles = launcherTokens.includes('--list-profiles');
+    const listInstances = launcherTokens.includes('--list-instances');
     if (listProfiles || listInstances) {
       let selection;
       try {

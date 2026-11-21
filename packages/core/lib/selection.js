@@ -1,10 +1,34 @@
 import { expandHome, instanceHome, readRegistry } from './registry.js';
 
 const VALUE_FLAGS = new Set(['--instance', '--home', '--profile', '--patch', '--from-default-profile']);
+const BOOLEAN_FLAGS = new Set(['--dump-config', '--dump-config-schema', '--dump-default-config', '--list-instances', '--list-profiles', '--version', '-V', '--help', '-h']);
+
+/** The index where launcher arguments end and the app's own arguments begin, plus a positional profile when it is the first one. */
+export function launcherBoundary(argv) {
+  let profile;
+  let profileIndex;
+  let flagProfile = false;
+  let index = 0;
+  for (; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token.startsWith('-')) {
+      if (flagProfile || profile !== undefined) break;
+      profile = token;
+      profileIndex = index;
+      continue;
+    }
+    const [name, inline] = token.includes('=') ? token.split('=', 2) : [token, undefined];
+    if (!VALUE_FLAGS.has(name) && !BOOLEAN_FLAGS.has(name)) break;
+    if (name === '--profile') flagProfile = true;
+    if (VALUE_FLAGS.has(name) && inline === undefined) index += 1;
+  }
+  return { end: Math.min(index, argv.length), profile, profileIndex };
+}
 
 export function selectionFlags(argv, { stopAtPositional = true } = {}) {
   const flags = {};
-  for (let index = 0; index < argv.length; index += 1) {
+  const limit = stopAtPositional ? launcherBoundary(argv).end : argv.length;
+  for (let index = 0; index < limit; index += 1) {
     const token = argv[index];
     if (token === '--') break;
     if (!token.startsWith('-')) {

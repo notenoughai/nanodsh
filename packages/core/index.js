@@ -8,7 +8,7 @@ export {
   updateRegistry,
   writeRegistry,
 } from './lib/registry.js';
-export { overriddenNotice, selectHome, selectionFlags, withoutSelectionFlags } from './lib/selection.js';
+export { launcherBoundary, overriddenNotice, selectHome, selectionFlags, withoutSelectionFlags } from './lib/selection.js';
 export { SUPPORTED_DISTRO_API, isPlainVersion, resolveInstance } from './lib/instance.js';
 export { addDistro, runPnpm, showDistro, switchDistro } from './lib/distro.js';
 export {
