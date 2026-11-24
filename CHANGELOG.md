@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Booting a profile now stops with one clear error when Node.js is older than 22.15, instead of failing inside the profile's plugins; the instance, profile, distro, plugin and dump commands keep working on Node.js 20.
 - A profile whose entries come only from its own patch file, the home patch, or a `--patch` overlay now boots; the empty-profile check looks at the composed entries instead of the bundle layers.
 - Launcher flags stop at the first argument the launcher does not know: `--instance <name> <profile> --dump-config` now dumps the tree like the other spellings, and `--list-profiles` or `--list-instances` after an app argument no longer list anything.
+- The plugin page offers the official optional bundles a distro carries, so a distro that ships them no longer leaves the experimental section empty.
 
 ## [0.0.4] - 2026-11-20
 
