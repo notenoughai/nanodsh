@@ -46,3 +46,17 @@ test('without an installed runtime there is no pin version', () => {
   const home = instance({ base: '0.2.2-rc.3' });
   assert.equal(resolveInstance(home).bundleVersion, undefined);
 });
+
+test('the install anchor is the selected distro manifest', () => {
+  const home = instance({ runtime: '0.2.2-rc.3' });
+  assert.equal(resolveInstance(home).installAnchor, join(home, 'node_modules', '@local', 'distro', 'package.json'));
+});
+
+test('a selected distro that is not installed keeps the distro add hint', () => {
+  const home = instance({ runtime: '0.2.2-rc.3' });
+  rmSync(join(home, 'node_modules', '@local', 'distro'), { recursive: true, force: true });
+  assert.throws(
+    () => resolveInstance(home),
+    /distro "@local\/distro" is selected but not installed in .*node_modules; run "nanodsh distro add @local\/distro"/,
+  );
+});

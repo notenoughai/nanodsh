@@ -37,7 +37,7 @@ function packageManifest(home, name) {
   if (!existsSync(file)) {
     throw new Error(`nanodsh: distro ${JSON.stringify(name)} is selected but not installed in ${join(home, 'node_modules')}; run "nanodsh distro add ${name}"`);
   }
-  return readJson(file);
+  return { file, manifest: readJson(file) };
 }
 
 export function resolveInstance(home = resolveDshHome()) {
@@ -47,11 +47,11 @@ export function resolveInstance(home = resolveDshHome()) {
   if (typeof selection.distro !== 'string' || selection.distro === '') {
     throw new Error(`nanodsh: ${selectionFile} does not name a distro`);
   }
-  const anchor = join(home, 'package.json');
-  if (!existsSync(anchor)) {
-    throw new Error(`nanodsh: ${selectionFile} selects ${JSON.stringify(selection.distro)} but ${anchor} is missing; run "nanodsh distro add ${selection.distro}"`);
+  const homeManifest = join(home, 'package.json');
+  if (!existsSync(homeManifest)) {
+    throw new Error(`nanodsh: ${selectionFile} selects ${JSON.stringify(selection.distro)} but ${homeManifest} is missing; run "nanodsh distro add ${selection.distro}"`);
   }
-  const manifest = packageManifest(home, selection.distro);
+  const { file: installAnchor, manifest } = packageManifest(home, selection.distro);
   const api = manifest.dsh?.distro?.api;
   if (api !== SUPPORTED_DISTRO_API) {
     throw new Error(`nanodsh: distro ${selection.distro}${manifest.version === undefined ? '' : `@${manifest.version}`} declares api ${JSON.stringify(api)} but this launcher supports ${SUPPORTED_DISTRO_API}`);
@@ -60,7 +60,7 @@ export function resolveInstance(home = resolveDshHome()) {
     home,
     distro: selection.distro,
     version: selection.version,
-    installAnchor: anchor,
+    installAnchor,
     defaultBundles: manifest.dsh.distro.defaultBundles ?? [],
     allowBuilds: manifest.dsh.distro.allowBuilds ?? [],
     bundleVersion: installedVersion(home, RUNTIME_PACKAGE),
